@@ -1,0 +1,7 @@
+[package]
+name = "src"
+version = "0.1"
+lean_version = "master"
+
+[dependencies]
+lean-lib = {git = "https://github.com/unitb/lean-lib", rev = "115224446e3c59192eaedb90766af68ac8075dbe"}
