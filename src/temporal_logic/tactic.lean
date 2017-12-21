@@ -1,6 +1,7 @@
 
 import util.predicate
 import util.control.applicative
+import util.meta.tactic
 
 import temporal_logic.basic
 
@@ -473,34 +474,85 @@ with_desc "(id :)? expr" $ do
   | _ := pure (none, t)
   end
 
+meta def sequent_type (p : expr) : tactic (option (expr × expr × expr)) :=
+do t ← infer_type p,
+   `(%%Γ ⊢ _) ← target,
+   match t with
+    | `(%%Γ ⊢ %%q) := return (some (Γ,p,q))
+    | `(⊩ %%q) := return (some (Γ,p Γ, q))
+    | _ := return none
+   end
+
 meta def cases (e : parse cases_arg_p) (ids : parse with_ident_list) : temporal unit :=
-do p ← to_expr e.2,
-   `(%%Γ ⊢ %%q) ← infer_type p | tactic.interactive.cases e ids,
+do p' ← to_expr e.2,
+   (some (Γ,p,q)) ← sequent_type p' | tactic.interactive.cases e ids,
    match q with
     | `(%%a ⋀ %%b) := do
       let h₀ : name := (ids.nth 0).get_or_else `a,
       let h₁ : name := (ids.nth 1).get_or_else `a,
       to_expr ``(p_and_elim_left %%a %%b %%Γ %%p) >>= note h₀ none,
       to_expr ``(p_and_elim_right %%a %%b %%Γ %%p) >>= note h₁ none,
-      when p.is_local_constant (tactic.clear p)
+      when p'.is_local_constant (tactic.clear p')
     | `(%%a ⋁ %%b) := do
       let h₀ : name := (ids.nth 0).get_or_else `a,
       let h₁ : name := (ids.nth 1).get_or_else `a,
       g ← target,
       note `h none p,
       revert [`h],
-      when p.is_local_constant (tactic.clear p),
+      when p'.is_local_constant (tactic.clear p'),
       apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
-      ; [ intros [h₀] , intros [h₁] ]
+      ; [ intros [h₀] , intros [h₁] ],
+      tactic.swap
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
+
+meta def focus_left (ids : parse with_ident_list) : temporal unit :=
+do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
+   `[rw [p_or_comm,← p_not_p_imp]],
+   intro ids.opt_head
+
+meta def focus_right (ids : parse with_ident_list) : temporal unit :=
+do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
+   `[rw [← p_not_p_imp]],
+   intro ids.opt_head
 
 meta def split : temporal unit :=
 do `(%%Γ ⊢ %%p ⋀ %%q) ← target,
    apply ``(p_and_intro %%p %%q %%Γ _ _)
 
+meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
+do `[ try { simp [next_init_eq_action,not_action] },
+      try { simp [init_eq_action,not_action] },
+      repeat { rw ← action_imp } ],
+   `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
+   get_assumptions >>= list.mmap' tactic.clear,
+   refine ``(unlift_action %%A _),
+   tactic.interactive.intros ids,
+   solve1 tac
+
+meta def repeat (tac : itactic) : temporal unit :=
+tactic.repeat tac
+
+meta def propositional : temporal unit :=
+tactic.interactive.propositional
+
 meta def assumption : temporal unit :=
 xassumption <|> strengthening xassumption
+
+meta def try (tac : itactic) : temporal unit :=
+tactic.try tac
+
+meta def refl :=
+do to_expr ``(ctx_impl _ _ _) >>= change,
+   tactic.reflexivity
+
+meta def reflexivity :=
+do to_expr ``(ctx_impl _ _ _) >>= change,
+   tactic.reflexivity
+
+meta def ac_refl :=
+do refine ``(entails_of_eq _ _ _ _) <|> refine ``(equiv_of_eq _ _ _ _),
+   tactic.ac_refl
 
 meta def dsimp :=
 tactic.interactive.dsimp
@@ -512,7 +564,8 @@ meta def simp (no_dflt : parse only_flag)
               (cfg : simp_config_ext := {}) : temporal unit :=
 -- if locat.include_goal
 -- then strengthening $ tactic.interactive.simp no_dflt hs attr_names locat cfg
-tactic.interactive.simp no_dflt hs attr_names locat cfg
+do tactic.interactive.simp no_dflt hs attr_names locat cfg,
+   try refl
 
 meta def exfalso : temporal unit :=
 do `(%%Γ ⊢ %%p) ← target,
@@ -572,7 +625,12 @@ do to_expr ``(well_founded.induction %%rec_name %%p) >>= tactic.apply,
 private meta def show_aux (p : pexpr) : list expr → list expr → tactic unit
 | []      r := fail "show tactic failed"
 | (g::gs) r := do
-  do {set_goals [g], g_ty ← target, ty ← i_to_expr p, unify g_ty ty, set_goals (g :: r.reverse ++ gs), tactic.change ty}
+  do { set_goals [g],
+       g_ty ← target,
+       ty ← i_to_expr p,
+       unify g_ty ty,
+       set_goals (g :: r.reverse ++ gs),
+       tactic.change ty}
   <|>
   show_aux gs (g::r)
 
@@ -588,16 +646,6 @@ meta def transitivity : parse texpr? → temporal unit
  | none := apply ``(predicate.p_imp_trans )
  | (some p) := apply ``(@predicate.p_imp_trans _ _ _ %%p _)
 
-meta def refl :=
-tactic.reflexivity
-
-meta def reflexivity :=
-tactic.reflexivity
-
-meta def ac_refl :=
-do refine ``(entails_of_eq _ _ _ _) <|> refine ``(equiv_of_eq _ _ _ _),
-   tactic.ac_refl
-
 end interactive
 
 universe variables u u₀ u₁ u₂
@@ -609,6 +657,9 @@ class persistent (p : cpred β) : Prop :=
 export persistent (is_persistent)
 
 instance henceforth_persistent {p : cpred β} : persistent (◻p) :=
+by { constructor, simp }
+
+instance not_eventually_persistent {p : cpred β} : persistent (-◇p) :=
 by { constructor, simp }
 
 instance leads_to_persistent {p q : cpred β} : persistent (p ~> q) :=
@@ -779,17 +830,26 @@ do asms ← get_assumptions,
     asms ts,
    return x
 
-meta def interactive.henceforth (loc : parse location) : temporal unit :=
-do when loc.include_goal $
+meta def interactive.henceforth (l : parse location) : temporal unit :=
+do when l.include_goal $
      persistently (do
        refine ``(persistent_to_henceforth _)),
-   loc.apply
-     (λ h, do b ← is_henceforth h,
-              when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
-              to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
-                >>= note h.local_pp_name none,
-              tactic.clear h)
-     (pure ())
+   match l with
+    | loc.wildcard := l.try_apply
+         (λ h, do b ← is_henceforth h,
+                  when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
+                  to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
+                    >>= note h.local_pp_name none,
+                  tactic.clear h)
+         (pure ())
+    | _ := l.apply
+         (λ h, do b ← is_henceforth h,
+                  when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
+                  to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
+                    >>= note h.local_pp_name none,
+                  tactic.clear h)
+         (pure ())
+  end
 
 meta def monotonicity1 : temporal unit :=
 do asms ← get_assumptions,

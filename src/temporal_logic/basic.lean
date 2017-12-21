@@ -223,6 +223,11 @@ lemma next_entails_eventually (p : cpred β)
 sorry
 
 @[strengthening]
+lemma henceforth_entails_next (p : cpred β)
+: ◻p ⟹ ⊙p :=
+sorry
+
+@[strengthening]
 lemma henceforth_str (p : cpred β) :
   (◻p ⟹ p) :=
 begin
@@ -249,6 +254,14 @@ lemma next_init_eq_action {p : pred' β}
 : ⊙•(p : pred' β) = ⟦ λ s s', s' ⊨ p ⟧ :=
 rfl
 
+lemma not_action {A : act β}
+: -⟦ A ⟧ = ⟦ λ s s', ¬ A s s' ⟧ :=
+rfl
+
+lemma action_false
+: (⟦ λ _ _, false ⟧ : cpred β) = False :=
+by { funext x, refl }
+
 lemma action_eq_next {p : β → β → Prop}
 :  (⟦ p ⟧ : cpred β) = (∃∃ s : β, •eq s ⋀ ⊙•p s) :=
 begin
@@ -259,6 +272,17 @@ begin
   ; try {subst x}
   ; assumption,
 end
+
+variables {Γ : cpred β}
+
+lemma unlift_action (A : act β)
+  (h : ∀ σ σ', A σ σ')
+: Γ ⊢ ⟦ A ⟧ :=
+begin
+  constructor, simp_intros [action],
+  apply h
+end
+
 
 lemma henceforth_next_intro (p : cpred β)
 : ◻p = ◻(p ⋀ ⊙p) := sorry

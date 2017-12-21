@@ -291,8 +291,8 @@ begin [temporal]
   event_ordering Hp Hq with h h
   ; eventually h
   ; cases h with h₀ h₁
-  ; [eventually h₀ ⊢,eventually h₁ ⊢]
-  ; henceforth at h₀ h₁ ⊢
+  ; [eventually h₁ ⊢,eventually h₀ ⊢]
+  ; henceforth at *
   ; split
   ; assumption,
 end
@@ -321,13 +321,10 @@ lemma coincidence {p q : cpred β} {Γ}
     (Hq : Γ ⊢ ◻◇q)
 : Γ ⊢ ◻◇(p ⋀ q) :=
 begin [temporal]
-  have H := henceforth_delay Hp Hq,
-  clear Hp Hq, rw ← eventually_inf_often,
-  eventually H ⊢,
-  rw [← henceforth_henceforth p,← henceforth_and] at H,
-  henceforth at H ⊢,
-  cases H with H₀ H₁,
-  eventually H₁ ⊢,
+  rw ← eventually_inf_often,
+  eventually Hp |- ,
+  henceforth at Hq |-,
+  eventually Hq |-,
   split ; assumption,
 end
 
@@ -535,8 +532,8 @@ begin [temporal]
   eventually this,
   rw [eventually_p_or],
   cases this with h h,
-  { right, assumption },
   { left, apply P₁ h },
+  { right, assumption },
 end
 
 protected lemma leads_to_disj_rng {α} {t : Sort u}
@@ -634,9 +631,9 @@ begin [temporal]
   have H₁ := inf_often_of_leads_to H h,
   rw [inf_often_p_or] at H₁,
   cases H₁ with H₁ H₁,
-  { apply H₁ },
   { exfalso, revert h,
     simp, apply H₁, },
+  { apply H₁ },
 end
 
 end inf_often_induction'
@@ -668,7 +665,7 @@ begin [temporal]
   let ACT := λ (s s' : α'), q s' ∨ lt (f s') (f s) ∨ ¬p s' ∧ f s = f s',
   have h₀ : ◇(⟦ACT⟧ ⋀ ⊙•↑p ⋀ •(EQ f v)),
   { suffices : ◇(⟦ACT⟧ ⋀ ⊙•↑p ⋀ •EQ f v) ⋁ ◻•EQ f v,
-    { cases this, tactic.swap, assumption,
+    { cases this, assumption,
       rw p_and_comm,
       apply coincidence' a,
       apply coincidence' h₁ h₀, },
