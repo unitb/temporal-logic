@@ -22,6 +22,14 @@ begin [temporal]
   intros, assumption
 end
 
+lemma next_henceforth (p : cpred β)
+: ◻p ⟹ ⊙◻p :=
+begin [temporal]
+  suffices : ◻◻p ⟶ ⊙◻p,
+  { simp at this, apply this },
+  intro h, apply h
+end
+
 lemma next_eventually_comm (p : cpred β)
 : ⊙◇p = ◇⊙p :=
 begin
@@ -118,6 +126,12 @@ begin
 end
 
 @[simp]
+lemma init_not (p : pred' β) : •-p = (-•p) :=
+begin
+  funext1,
+  TL_simp [init],
+end
+
 lemma not_init (p : pred' β) : (-•p) = •-p :=
 begin
   funext1,
@@ -126,6 +140,10 @@ end
 
 lemma next_or (p q : cpred β)
 : ⊙(p ⋁ q) = ⊙p ⋁ ⊙q :=
+rfl
+
+lemma next_imp (p q : cpred β)
+: ⊙(p ⟶ q) = ⊙p ⟶ ⊙q :=
 rfl
 
 open nat
@@ -161,6 +179,50 @@ begin
   simp [next] at this, simp [tail_drop] at this,
   simp [drop_succ,this],
 end
+
+instance or_persistent {p q : cpred β}
+  [persistent p]
+  [persistent q]
+: persistent (p ⋁ q) :=
+begin
+  constructor,
+  apply mutual_entails,
+  apply henceforth_str,
+  begin [temporal]
+    intro h,
+    cases h with h h,
+    { rw ← is_persistent p at h,
+      revert h,
+      monotonicity,
+      propositional, },
+    { henceforth, right, exact h }
+  end
+end
+
+instance imp_persistent {p q : cpred β}
+  [persistent $ - p]
+  [persistent q]
+: persistent (p ⟶ q) :=
+by { simp [p_imp_iff_p_not_p_or], apply_instance }
+
+instance stable_persistent {p : cpred β}
+: persistent (◇ ◻ p) :=
+begin
+  constructor,
+  apply mutual_entails,
+  apply henceforth_str,
+  begin [temporal]
+    apply induct,
+    henceforth,
+    rw next_eventually_comm,
+    monotonicity,
+    apply next_henceforth
+  end
+end
+
+instance not_inf_often_persistent {p : cpred β}
+: persistent (- ◻◇p) :=
+by { simp, apply_instance }
 
 lemma induct' {β} (p : cpred β) {Γ}
   (h : Γ ⊢ ◻ (p ⟶ ⊙p))

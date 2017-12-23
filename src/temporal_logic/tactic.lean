@@ -79,6 +79,16 @@ open has_map list (filter)
 --        lift₂ prod.mk local_context target) gs
 --     <* set_goals gs
 
+meta def beta_reduction' : expr → temporal expr
+ | (expr.app e₀ e₁) :=
+ do e₁ ← beta_reduction' e₁,
+    e₀ ← beta_reduction' e₀,
+    head_beta $ expr.app e₀ e₁
+ | e := expr.traverse beta_reduction' e >>= head_eta
+
+meta def beta_reduction (e : expr) : temporal expr :=
+instantiate_mvars e >>= beta_reduction'
+
 meta def succeeds {α} (tac : temporal α) : temporal bool :=
 tt <$ tac <|> pure ff
 
@@ -132,8 +142,7 @@ do  set_goals [g],
     return $ unlines (hs' ++ [format!"⊢ {p}"])
 
 meta def save_info (p : pos) : temporal unit :=
-do s   ← tactic.read,
-   gs  ← get_goals,
+do gs  ← get_goals,
    fmt ← mmap temp_to_fmt gs,
    set_goals gs,
    tactic.save_info_thunk p (λ _,
@@ -147,20 +156,41 @@ c >>[tactic] cleanup
 meta def istep {α : Type} (line0 col0 line col : nat) (c : temporal α) : temporal unit :=
 tactic.istep line0 col0 line col c
 
+meta def uniform_assumptions' (Γ : expr)
+: expr → expr → temporal (option (expr × expr))
+| h t := do
+   t ← head_beta t,
+   match t with
+    | (expr.pi n bi t' e) :=
+      do l ← mk_local' n bi t',
+         (some (p,t)) ← uniform_assumptions' (h l) (e.instantiate_var l) | return none,
+         let abs := t.lambdas [l],
+         let p' := p.lambdas [l],
+         p ← some <$> (prod.mk <$> to_expr ``( (p_forall_to_fun %%Γ %%abs).mpr %%p' )
+                               <*> to_expr ``( p_forall %%abs )),
+         return p
+    | `(%%Γ' ⊢ %%p) := (is_def_eq Γ Γ' >> some (h,p) <$ guard (¬ Γ.occurs p))
+    | p := guard (¬ Γ.occurs p) >> pure none
+   end
+
 meta def uniform_assumptions (Γ h : expr) : temporal unit :=
 do t ← infer_type h,
-   match t with
-    | `(%%Γ' ⊢ %%p) := (is_def_eq Γ Γ' >> guard (¬ Γ.occurs p)) <|> clear h
-    | p := when (Γ.occurs p) $ clear h
+   (some r) ← try_core (uniform_assumptions' Γ h t) | clear h,
+   match r with
+    | (some (pr,t)) :=
+          do  p ← to_expr ``(%%Γ ⊢ %%t),
+              assertv h.local_pp_name p pr,
+              clear h
+    | none := return ()
    end
 
 meta def execute (c : temporal unit) : tactic unit :=
 do t ← target,
    match t with
-    | `(⊩ _) := () <$ tactic.intro `Γ
-    | `(_ ⟹ _) := () <$ tactic.intro `Γ
-    | `(%%Γ ⊢ _) := local_context >>= mmap' (uniform_assumptions Γ)
-    | _ := fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
+     | `(⊩ _) := () <$ tactic.intro `Γ
+     | `(_ ⟹ _) := () <$ tactic.intro `Γ
+     | `(%%Γ ⊢ _) := local_context >>= mmap' (uniform_assumptions Γ)
+     | _ := fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
    c
 
@@ -341,16 +371,6 @@ do `(%%Γ ⊢ _) ← target,
 meta def solve1 : temporal unit → temporal unit :=
 tactic.interactive.solve1
 
-meta def beta_reduction' : expr → temporal expr
- | (expr.app e₀ e₁) :=
- do e₁ ← beta_reduction' e₁,
-    e₀ ← beta_reduction' e₀,
-    head_beta $ expr.app e₀ e₁
- | e := expr.traverse beta_reduction' e >>= head_eta
-
-meta def beta_reduction (e : expr) : temporal expr :=
-instantiate_mvars e >>= beta_reduction'
-
 protected meta def note (h : name) : option expr → expr → temporal expr
  | none  pr :=
 do p ← infer_type pr >>= beta_reduction,
@@ -371,6 +391,9 @@ tactic.done
 
 meta def itactic : Type :=
 temporal unit
+
+meta def timetac (s : string) (tac : itactic) : temporal unit :=
+tactic.timetac s tac
 
 meta def solve1 : itactic → temporal unit :=
 tactic.interactive.solve1
@@ -451,6 +474,9 @@ meta def introv : parse ident_* → tactic (list expr)
 meta def revert (ns : parse ident*) : temporal unit :=
 mmap get_local ns >>= mmap' temporal.revert
 
+meta def exact (e : parse texpr) : temporal unit :=
+tactic.interactive.exact e
+
 meta def apply (q : parse texpr) : temporal unit :=
 do l ← i_to_expr_for_apply q,
    tactic.apply l <|> strengthening (tactic.apply l)
@@ -506,23 +532,40 @@ do p' ← to_expr e.2,
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
 
-meta def focus_left (ids : parse with_ident_list) : temporal unit :=
+meta def focus_left' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    `[rw [p_or_comm,← p_not_p_imp]],
-   intro ids.opt_head
+   temporal.intro id
 
-meta def focus_right (ids : parse with_ident_list) : temporal unit :=
+meta def focus_left (ids : parse with_ident_list) : temporal unit :=
+() <$ focus_left' ids.opt_head
+
+meta def focusing_left (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
+do x ← focus_left' ids.opt_head,
+   focus1 (tac >> temporal.revert x >> `[rw [p_not_p_imp,← p_or_comm]])
+
+meta def focus_right' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    `[rw [← p_not_p_imp]],
-   intro ids.opt_head
+   temporal.intro id
+
+meta def focus_right (ids : parse with_ident_list) : temporal unit :=
+() <$ focus_right' ids.opt_head
+
+meta def focusing_right (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
+do x ← focus_right' ids.opt_head,
+   focus1 (tac >> temporal.revert x >> `[rw [p_not_p_imp]])
 
 meta def split : temporal unit :=
 do `(%%Γ ⊢ %%p ⋀ %%q) ← target,
    apply ``(p_and_intro %%p %%q %%Γ _ _)
 
+meta def clear_except :=
+tactic.interactive.clear_except
+
 meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
-do `[ try { simp [next_init_eq_action,not_action] },
-      try { simp [init_eq_action,not_action] },
+do `[ try { simp only [not_init,next_init_eq_action,not_action] },
+      try { simp only [init_eq_action,not_action] },
       repeat { rw ← action_imp } ],
    `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
    get_assumptions >>= list.mmap' tactic.clear,
@@ -532,6 +575,13 @@ do `[ try { simp [next_init_eq_action,not_action] },
 
 meta def repeat (tac : itactic) : temporal unit :=
 tactic.repeat tac
+
+meta def lifted_pred
+  (no_dflt : parse only_flag)
+  (rs : parse simp_arg_list)
+  (us : parse using_idents)
+: temporal unit :=
+tactic.interactive.lifted_pred no_dflt rs us
 
 meta def propositional : temporal unit :=
 tactic.interactive.propositional
@@ -639,8 +689,21 @@ do gs ← get_goals,
    show_aux q gs [],
    solve1 tac
 
-meta def replace :=
-tactic.interactive.replace
+meta def replace (n : parse ident)
+: parse (parser.tk ":" *> texpr)? → parse (parser.tk ":=" *> texpr)? → temporal unit
+| none prf := tactic.interactive.replace n none prf
+| (some t) (some prf) :=
+do t' ← to_expr t >>= infer_type,
+   tl ← tt <$ match_expr ``(pred' _) t' <|> pure ff,
+   if tl then do
+     `(%%Γ ⊢ _) ← target,
+     tactic.interactive.replace n ``(%%Γ ⊢ %%t) prf
+   else tactic.interactive.replace n t prf
+| (some t) none :=
+do t' ← to_expr t >>= infer_type,
+   match_expr ``(pred' _) t' ,
+   `(%%Γ ⊢ _) ← target,
+   tactic.interactive.replace n ``(%%Γ ⊢ %%t) none
 
 meta def transitivity : parse texpr? → temporal unit
  | none := apply ``(predicate.p_imp_trans )
@@ -801,7 +864,7 @@ private meta def mk_type_list (Γ pred_t : expr)  : list expr → temporal (expr
       inst ← tactic.mk_mapp `temporal.cons_persistent [none,c,es,inst₀,is],
       return (ls,inst)
 
-meta def persistently {α} (tac : temporal α) : temporal α :=
+meta def persistently (tac : itactic) : temporal unit :=
 do asms ← get_assumptions,
    `(%%Γ ⊢ %%p) ← target >>= instantiate_mvars,
    pred_t ← infer_type Γ,
@@ -812,7 +875,8 @@ do asms ← get_assumptions,
    ts ← mmap consequent asms,
    h ← to_expr  ``(@to_antecendent _ %%asms' %%inst %%p) >>= note `h none,
    `[simp only [temporal.with_h_asms] at h],
-   refine ```(h _),
+   h ← get_local `h,
+   refine ``(%%h _),
    get_local `h >>= tactic.clear,
       -- calling tac
    x ← focus1 tac,
@@ -825,7 +889,6 @@ do asms ← get_assumptions,
    mmap₂ (λ l t : expr, do
       let n := l.local_pp_name,
       tactic.intro n,
-      h ← get_local l.local_pp_name,
       tactic.interactive.change ``(%%Γ ⊢ %%t) none (loc.ns [some n]))
     asms ts,
    return x
@@ -937,7 +1000,7 @@ meta def interactive.«suffices» (h : parse ident?) (t : parse (tk ":" *> texpr
 interactive.«have» h t none >> tactic.swap
 
 run_cmd do
-  let ls := [`monotonicity,`monotonicity1],
+  let ls := [`monotonicity,`monotonicity1,`persistently],
   ls.for_each $ λ l, do
     env    ← get_env,
     d_name ← resolve_constant l,
