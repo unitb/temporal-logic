@@ -185,12 +185,15 @@ do t ← infer_type h,
    end
 
 meta def execute (c : temporal unit) : tactic unit :=
-do t ← target,
+do whnf_target,
+   t ← target,
    match t with
      | `(⊩ _) := () <$ tactic.intro `Γ
      | `(_ ⟹ _) := () <$ tactic.intro `Γ
+     | `(∀ Γ : pred' _, Γ ⊢ _) := () <$ tactic.intro `Γ
      | `(%%Γ ⊢ _) := local_context >>= mmap' (uniform_assumptions Γ)
-     | _ := fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
+     | _ := to_expr ``(⊩ _) >>= tactic.change >> () <$ tactic.intro `Γ
+          <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
    c
 
@@ -266,7 +269,7 @@ do to_expr ``(_ ⊢ _ ⟶ _) >>= change <|>
    match g with
     | `(%%Γ ⊢ %%p ⟶ %%q)  := do
       ls ← get_assumptions,
-      r ← revert_lst (Γ :: ls).reverse <|> fail "revert",
+      r ← revert_lst (Γ :: ls).reverse,
       guard (r = ls.length + 1) <|> fail format!"wrong use of context {Γ}: {r} ≠ {ls.length + 1}",
       ls' ← mk_type_list ls,
       h ← to_expr  ``(p_imp_intro_asms %%ls' %%p %%q) >>= note `h none,
@@ -405,7 +408,7 @@ meta def explicit
   (st : parse (ident <|> pure `σ))
   (tac : tactic.interactive.itactic) : temporal unit :=
 do `(%%Γ ⊢ _) ← target,
-   asms ← get_assumptions <|> fail "assumption",
+   asms ← get_assumptions,
    constructor,
    st ← tactic.intro st,
    hΓ ← tactic.intro `hΓ,
@@ -532,6 +535,19 @@ do p' ← to_expr e.2,
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
 
+meta def induction
+  (obj : parse texpr)
+  (rec_name : parse using_ident)
+  (ids : parse with_ident_list)
+  (revert : parse $ (tk "generalizing" *> ident*)?)
+: tactic unit :=
+do `(%%Γ ⊢ _) ← target,
+   tactic.interactive.induction obj rec_name ids revert ;
+     (local_context >>= mmap' (uniform_assumptions Γ))
+
+meta def case (ctor : parse ident) (ids : parse ident_*) (tac : itactic) : tactic unit :=
+tactic.interactive.case ctor ids tac
+
 meta def focus_left' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    `[rw [p_or_comm,← p_not_p_imp]],
@@ -604,6 +620,10 @@ meta def ac_refl :=
 do refine ``(entails_of_eq _ _ _ _) <|> refine ``(equiv_of_eq _ _ _ _),
    tactic.ac_refl
 
+meta def unfold_coes (ids : parse ident *) (l : parse location) (cfg : unfold_config := { }) : temporal unit :=
+tactic.interactive.unfold_coes l >>
+tactic.interactive.unfold ids l cfg
+
 meta def dsimp :=
 tactic.interactive.dsimp
 
@@ -642,10 +662,6 @@ meta def type_check
    (e : parse texpr)
 : tactic unit :=
 tactic.interactive.type_check e
-
-meta def induction (p : parse texpr) (rec_name : parse using_ident) (ids : parse with_ident_list)
-  (revert : parse $ (tk "generalizing" *> ident*)?) : tactic unit :=
-tactic.interactive.induction p rec_name ids revert
 
 def with_defaults {α} : list α → list α → list α
  | [] xs := xs

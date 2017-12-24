@@ -650,7 +650,7 @@ end
 
 section inf_often_induction'
 
-parameters {α' β' : Type}
+parameters {α' : Type u}  {β' : Type u₀}
 parameters {Γ : cpred α'} (V : α' → β') (p q : pred' α')
 parameters {lt : β' → β' → Prop}
 parameters (wf : well_founded lt)
