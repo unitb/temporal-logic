@@ -461,12 +461,11 @@ do `(%%Γ ⊢ _) ← target,
    constructor,
    st ← tactic.intro st,
    hΓ ← tactic.intro `hΓ,
-   `[simp [comp,temporal.init]],
    asms.for_each (λ h, do
      e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
      note h.local_pp_name none e,
      tactic.clear h),
-   tactic.interactive.simp ff
+   try $ tactic.interactive.simp ff
        (map simp_arg_type.expr [``(function.comp),``(temporal.init)]) []
        (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
    tactic.clear hΓ,
