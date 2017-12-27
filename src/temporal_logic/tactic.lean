@@ -47,8 +47,12 @@ tactic
 -- end
 
 open format
+
+meta def format.intercalate (x : format) : list format → format :=
+format.join ∘ list.intersperse x
+
 meta def unlines : list format → format :=
-format.join ∘ list.intersperse line
+format.intercalate line
 
 meta instance : monad temporal :=
 by { dunfold temporal, apply_instance }
@@ -139,7 +143,7 @@ do  set_goals [g],
     hs' ← mfilter (λ x : _ × _, ff <$ is_def_eq Γ x.1 <|> pure tt) hs'
           >>= mmapp decl_to_fmt ∘ compact,
     p ← pp p,
-    return $ unlines (hs' ++ [format!"⊢ {p}"])
+    return $ format.intercalate line [format.intercalate (","++line) hs',format!"⊢ {p}"]
 
 meta def save_info (p : pos) : temporal unit :=
 do gs  ← get_goals,
@@ -184,15 +188,35 @@ do t ← infer_type h,
     | none := return ()
    end
 
+meta def semantic_assumption (τ h : expr) : temporal ℕ :=
+do `(%%τ' ⊨ _) ← infer_type h | return 0,
+   (do is_def_eq τ τ',
+       revert h, `[rw ← eq_judgement],
+       return 1)
+    <|> return 0
+
+meta def sem_to_syntactic : tactic unit :=
+do `(%%τ ⊨ _) ← target,
+   α ← infer_type τ,
+   `[rw ← eq_judgement],
+   r ← local_context >>= mfoldl (λ a h, (+) a <$> semantic_assumption τ h) 0,
+   tactic.interactive.generalize none (``(↑(eq %%τ) : pred' %%α), `Γ),
+   -- trace_state,
+   -- trace τ,
+   -- trace r,
+   intron r
+
+
 meta def execute (c : temporal unit) : tactic unit :=
-do whnf_target,
-   t ← target,
-   match t with
+do t ← target,
+   t' ← whnf t,
+   match t' with
      | `(⊩ _) := () <$ tactic.intro `Γ
      | `(_ ⟹ _) := () <$ tactic.intro `Γ
      | `(∀ Γ : pred' _, Γ ⊢ _) := () <$ tactic.intro `Γ
      | `(%%Γ ⊢ _) := local_context >>= mmap' (uniform_assumptions Γ)
      | _ := to_expr ``(⊩ _) >>= tactic.change >> () <$ tactic.intro `Γ
+          <|> refine ``(@id (_ ⊨ _) _) >> sem_to_syntactic
           <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
    c
@@ -380,6 +404,31 @@ do p ← infer_type pr >>= beta_reduction,
    assertv h p pr
  | (some p)  pr := assertv h p pr
 
+/-- bind the initial value of state-dependent expression
+    `e` to global (through time) name `n`
+  -/
+meta def bind_name (e : expr) (n h : name) : temporal expr :=
+do refine ``(one_point_elim _ _ %%e _),
+   x ← tactic.intro n,
+   temporal.intro h,
+   return x
+
+meta def update_name (f : string → string) : name → name
+ | (name.mk_string s p) := name.mk_string (f s) p
+ | x := x
+
+meta def existsi (e : expr) : temporal unit :=
+do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
+   `(cpred %%σ) ← infer_type Γ,
+   t' ← infer_type e,
+   let v := if e.is_constant
+            then update_name (λ s, s ++ "₀") e.const_name
+            else if e.is_local_constant
+            then update_name (λ s, s ++ "₀") e.local_pp_name
+            else `v₀,
+   w ← (match_expr ``(%%σ → %%t) t' >> bind_name e v `h <|> return e),
+   refine ``(p_exists_to_fun %%w _)
+
 namespace interactive
 open lean.parser interactive interactive.types lean
 open expr
@@ -412,10 +461,14 @@ do `(%%Γ ⊢ _) ← target,
    constructor,
    st ← tactic.intro st,
    hΓ ← tactic.intro `hΓ,
+   `[simp [comp,temporal.init]],
    asms.for_each (λ h, do
      e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
      note h.local_pp_name none e,
-     tactic.clear h ),
+     tactic.clear h),
+   tactic.interactive.simp ff
+       (map simp_arg_type.expr [``(function.comp),``(temporal.init)]) []
+       (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
    tactic.clear hΓ,
    tactic.clear Γ,
    solve1 tac
@@ -576,18 +629,25 @@ meta def split : temporal unit :=
 do `(%%Γ ⊢ %%p ⋀ %%q) ← target,
    apply ``(p_and_intro %%p %%q %%Γ _ _)
 
+meta def existsi : parse pexpr_list_or_texpr → temporal unit
+| []      := return ()
+| (p::ps) := i_to_expr p >>= temporal.existsi >> existsi ps
+
 meta def clear_except :=
 tactic.interactive.clear_except
 
 meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
 do `[ try { simp only [not_init,next_init_eq_action,not_action] },
-      try { simp only [init_eq_action,not_action] },
+      try { simp only [init_eq_action,not_action,action_and_action,models_pred,models_prop] },
       repeat { rw ← action_imp } ],
-   `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
    get_assumptions >>= list.mmap' tactic.clear,
+   `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
    refine ``(unlift_action %%A _),
-   tactic.interactive.intros ids,
+   tactic.intro_lst [`σ,`σ'],
+   mmap' tactic.intro ids,
    solve1 tac
+
+meta def print := tactic.print
 
 meta def repeat (tac : itactic) : temporal unit :=
 tactic.repeat tac
@@ -937,6 +997,15 @@ do asms ← get_assumptions,
    then persistently $ do
           to_expr ``(tl_imp _ _ _) >>= change,
           tactic.interactive.monotonicity1
+   else tactic.interactive.monotonicity1
+
+meta def monotonicity_n (n : ℕ) : temporal unit :=
+do asms ← get_assumptions,
+   ex ← list.band <$> asms.mmap is_henceforth,
+   if ex
+   then persistently $ do
+          to_expr ``(tl_imp _ _ _) >>= change,
+          tactic.repeat_exactly n tactic.interactive.monotonicity1
    else tactic.interactive.monotonicity1
 
 meta def monotonicity (e : parse assert_or_rule?) : temporal unit :=

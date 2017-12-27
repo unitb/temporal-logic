@@ -498,4 +498,15 @@ begin
   TL_simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
+lemma one_point_elim {β t} (Γ p : cpred β) (v : β → t)
+  (h : ∀ x, Γ ⊢ •(eq x ∘ v) ⟶ p)
+: Γ ⊢ p :=
+begin
+  rw [← p_forall_to_fun] at h,
+  constructor,
+  intros τ h',
+  apply h.apply _ h' (v $ τ 0),
+  simp [init,function.comp],
+end
+
 end temporal

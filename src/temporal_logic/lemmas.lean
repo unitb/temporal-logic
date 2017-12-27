@@ -148,17 +148,24 @@ rfl
 
 open nat
 
--- lemma action_drop (A : act β) (τ : stream β) (i : ℕ)
--- : ⟦ A ⟧ (τ.drop i) ↔ A (τ i) (τ $ succ i) :=
--- by { unfold drop action, TL_simp [action] }
+@[simp]
+lemma action_drop (A : act β) (τ : stream β) (i : ℕ)
+: τ.drop i ⊨ ⟦ A ⟧ ↔ A (τ i) (τ $ succ i) :=
+by { unfold drop action, TL_simp [action] }
 
--- lemma init_drop (p : pred' β) (τ : stream β) (i : ℕ)
--- : (• p) (τ.drop i) ↔ p (τ i)  :=
--- by { unfold drop action, simp [init_to_fun] }
+@[simp]
+lemma init_drop (p : pred' β) (τ : stream β) (i : ℕ)
+: τ.drop i ⊨ (• p) ↔ τ i ⊨ p  :=
+by { unfold drop action, simp [init_to_fun] }
 
--- lemma next_init (p : pred' β) (τ : stream β)
--- : (⊙•p) τ = p (τ 1) :=
--- rfl
+@[simp]
+lemma next_init (p : pred' β) (τ : stream β)
+: τ ⊨ ⊙•p = τ 1 ⊨ p :=
+by refl
+
+lemma models_henceforth (p : cpred β) (τ : stream β)
+: τ ⊨ ◻p ↔ ∀ i, drop i τ ⊨ p :=
+by { cases p, simp [henceforth] }
 
 lemma eventually_p_or {β} (p q : cpred β)
 : ◇(p ⋁ q) = ◇p ⋁ ◇q :=
@@ -421,12 +428,14 @@ lemma next_imp_next {p q : cpred β} (h : p ⟹ q)
 : ⊙ p ⟹ ⊙ q :=
 by { pointwise h with τ, auto }
 
--- lemma entail_contrapos {p q : pred' β} : p ⟹ q → (-q) ⟹ -p :=
--- begin
---   intros h τ hnq hp,
---   apply hnq,
---   apply h _ hp,
--- end
+@[monotonic]
+lemma next_tl_imp_next {Γ p q : cpred β} (h : tl_imp Γ p q)
+: tl_imp Γ (⊙ p) (⊙ q) :=
+by { lifted_pred [tl_imp], intros h',
+     replace h := h.apply σ.tail,
+     replace h' := ew_str (next_henceforth Γ) _ h',
+     simp [next] at h',
+     apply h h', }
 
 lemma eventually_and {Γ p q : cpred β}
    (h₀ : Γ ⊢ ◻p)
@@ -452,6 +461,31 @@ end
 lemma forall_henceforth_one_point {t} (V : β → t) (P : stream t → cpred β)
 : (∀∀ x : t, ◻•(eq x ∘ V) ⟶ P (const x) : cpred β) = ↑(λ (s : stream β), s ⊨ P (map V s)) :=
 sorry
+
+lemma p_exists_intro {t} {Γ : cpred β} {p : t → cpred β}
+  (v : β → t)
+  (H : ∀ x, Γ ⊢ •(eq x ∘ v) → Γ ⊢ p x)
+: Γ ⊢ p_exists p :=
+begin
+  constructor,
+  intros τ hΓ,
+  simp [p_exists,pred.p_exists],
+  existsi (v $ τ 0),
+  have h' : Γ ⊢ •↑(eq (v (τ 0)) ∘ v),
+  { admit },
+  specialize H (v (τ 0)) h',
+  apply H.apply _ hΓ,
+end
+
+lemma p_exists_intro_eventually {t} {Γ : cpred β} {p : t → cpred β}
+  (v : β → t)
+  (H : ∀ x, Γ ⊢ ◇•(eq x ∘ v) → Γ ⊢ p x)
+: Γ ⊢ p_exists p :=
+begin
+  apply p_exists_intro v,
+  introv h, apply H, revert h,
+  exact eventually_weaken (•↑(eq x ∘ v)) Γ,
+end
 
 /- Actions -/
 
@@ -490,8 +524,9 @@ end
 
 open function
 
+@[simp]
 lemma henceforth_trading {α} (f : α → β) (p : cpred β)
-: (◻ (p '∘ map f)) = (◻ p) '∘ map f :=
+: (◻ p) '∘ map f = ◻ (p '∘ map f) :=
 begin
   funext1,
   unfold comp henceforth,
@@ -500,8 +535,9 @@ begin
   refl,
 end
 
+@[simp]
 lemma eventually_trading {α} (f : α → β) (p : cpred β)
-: (◇ (p '∘ map f)) = (◇ p) '∘ map f :=
+: (◇ p) '∘ map f = ◇ (p '∘ map f) :=
 begin
   funext1,
   unfold comp eventually,
@@ -509,21 +545,24 @@ begin
   TL_simp, refl,
 end
 
+@[simp]
 lemma init_trading {α} (f : α → β) (p : pred' β)
-: • (p '∘ f) = (• p) '∘ map f :=
+: (• p) '∘ map f = • (p '∘ f) :=
 begin
   funext1,
   TL_simp [comp,init],
   refl
 end
 
+@[simp]
 lemma action_trading {α} (f : α → β) (a : act β)
-: ( action $ a on f ) = (action a '∘ map f) :=
+: (action a '∘ map f) = ( action $ a on f ) :=
 begin
   funext1,
   refl,
 end
 
+@[simp]
 lemma comp_map_app_eq_map {α} (p : cpred β) (f : α → β) (τ : stream α)
 : map f τ ⊨ p ↔ τ ⊨ p '∘ map f :=
 by cases p; refl
@@ -538,16 +577,15 @@ by { TL_simp [init_trading,eventually_trading,henceforth_trading], }
 
 lemma inf_often_trace_action_trading {α} (τ : stream α) (f : α → β) (p : act β)
 : τ ⊨ ◻◇⟦ p on f ⟧ = map f τ ⊨ ◻◇⟦ p ⟧ :=
-by { rw [action_trading,eventually_trading,henceforth_trading], refl }
+by { simp }
 
 lemma stable_trace_trading {α} (τ : stream α) (f : α → β) (p : cpred β)
 : τ ⊨ ◇◻(p '∘ map f) = map f τ ⊨ ◇◻p :=
-by { rw [henceforth_trading,eventually_trading], refl }
+by { simp }
 
 lemma stable_trace_init_trading {α} (τ : stream α) (f : α → β) (p : pred' β)
 : τ ⊨ ◇◻•(p '∘ f) = map f τ ⊨ ◇◻•p :=
-by { rw [init_trading,henceforth_trading,eventually_trading], refl }
-
+by { simp }
 
 -- lemma stable_trace_init_trading (τ : stream α) (f : α → β) (p : β → Prop)
 -- : (◇◻•(p ∘ f)) τ = (◇◻•p) (f ∘ τ) :=
