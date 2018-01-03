@@ -426,7 +426,7 @@ do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
             else if e.is_local_constant
             then update_name (λ s, s ++ "₀") e.local_pp_name
             else `v₀,
-   w ← (match_expr ``(%%σ → %%t) t' >> bind_name e v `h <|> return e),
+   w ← (match_expr ``(var %%σ %%t) t' >> bind_name e v `h <|> return e),
    refine ``(p_exists_to_fun %%w _)
 
 namespace interactive
@@ -656,7 +656,7 @@ meta def lifted_pred
   (rs : parse simp_arg_list)
   (us : parse using_idents)
 : temporal unit :=
-tactic.interactive.lifted_pred no_dflt rs us
+tactic.interactive.lifted_pred ff no_dflt rs us
 
 meta def propositional : temporal unit :=
 tactic.interactive.propositional
@@ -733,11 +733,12 @@ meta def rename_bound (n : name) : expr → expr
 
 meta def wf_induction
   (p : parse texpr)
-  (rec_name : parse $ tk "using" *> texpr)
+  (rec_name : parse (tk "using" *> texpr)?)
   (ids : parse with_ident_list)
   -- (revert : parse $ (tk "generalizing" *> ident*)?)
 : tactic unit :=
-do to_expr ``(well_founded.induction %%rec_name %%p) >>= tactic.apply,
+do rec_name ← (↑rec_name : tactic pexpr) <|> return ``(has_well_founded.wf _),
+   to_expr ``(well_founded.induction %%rec_name %%p) >>= tactic.apply,
    try $ to_expr p >>= tactic.clear,
    ids' ← tactic.intro_lst $ (with_defaults ids [`x,`ih_1]).take 2 ,
    h ← ids'.nth 1,

@@ -14,6 +14,9 @@ variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
 namespace temporal
 open predicate stream
 
+attribute [predicate] stream.drop pred'.mk
+attribute [simp] pred'.mk
+
 lemma henceforth_next (p : cpred β)
 : ◻p ⟹ ◻⊙p :=
 begin [temporal]
@@ -32,12 +35,7 @@ end
 
 lemma next_eventually_comm (p : cpred β)
 : ⊙◇p = ◇⊙p :=
-begin
-  lifted_pred [next,eventually,tail],
-  apply exists_congr, simp_intros,
-  apply eq.to_iff, apply congr_arg,
-  funext i, simp [nth,drop],
-end
+by lifted_pred [next,eventually,tail]
 
 /- distributivity -/
 
@@ -153,10 +151,20 @@ lemma action_drop (A : act β) (τ : stream β) (i : ℕ)
 : τ.drop i ⊨ ⟦ A ⟧ ↔ A (τ i) (τ $ succ i) :=
 by { unfold drop action, TL_simp [action] }
 
+@[simp, predicate]
+lemma models_action (A : act β) (τ : stream β)
+: τ ⊨ ⟦ A ⟧ ↔ A (τ 0) (τ 1) :=
+by { unfold drop action, TL_simp [action] }
+
 @[simp]
 lemma init_drop (p : pred' β) (τ : stream β) (i : ℕ)
 : τ.drop i ⊨ (• p) ↔ τ i ⊨ p  :=
 by { unfold drop action, simp [init_to_fun] }
+
+@[simp, predicate]
+lemma models_next (p : cpred β) (τ : stream β)
+: τ ⊨ ⊙p = drop 1 τ ⊨ p :=
+by refl
 
 @[simp]
 lemma next_init (p : pred' β) (τ : stream β)
@@ -431,11 +439,11 @@ by { pointwise h with τ, auto }
 @[monotonic]
 lemma next_tl_imp_next {Γ p q : cpred β} (h : tl_imp Γ p q)
 : tl_imp Γ (⊙ p) (⊙ q) :=
-by { lifted_pred [tl_imp], intros h',
+by { lifted_pred keep [tl_imp], -- intros h',
      replace h := h.apply σ.tail,
-     replace h' := ew_str (next_henceforth Γ) _ h',
-     simp [next] at h',
-     apply h h', }
+     apply h, clear h,
+     intro i, simp [tail],
+     apply a (i+1), }
 
 lemma eventually_and {Γ p q : cpred β}
    (h₀ : Γ ⊢ ◻p)
@@ -459,33 +467,9 @@ begin
 end
 
 lemma forall_henceforth_one_point {t} (V : β → t) (P : stream t → cpred β)
-: (∀∀ x : t, ◻•(eq x ∘ V) ⟶ P (const x) : cpred β) = ↑(λ (s : stream β), s ⊨ P (map V s)) :=
+: (∀∀ x : t, ◻•((V : var β t) ≃ x) ⟶ P (const x) : cpred β) = ↑(λ (s : stream β), s ⊨ P (map V s)) :=
 sorry
 
-lemma p_exists_intro {t} {Γ : cpred β} {p : t → cpred β}
-  (v : β → t)
-  (H : ∀ x, Γ ⊢ •(eq x ∘ v) → Γ ⊢ p x)
-: Γ ⊢ p_exists p :=
-begin
-  constructor,
-  intros τ hΓ,
-  simp [p_exists,pred.p_exists],
-  existsi (v $ τ 0),
-  have h' : Γ ⊢ •↑(eq (v (τ 0)) ∘ v),
-  { admit },
-  specialize H (v (τ 0)) h',
-  apply H.apply _ hΓ,
-end
-
-lemma p_exists_intro_eventually {t} {Γ : cpred β} {p : t → cpred β}
-  (v : β → t)
-  (H : ∀ x, Γ ⊢ ◇•(eq x ∘ v) → Γ ⊢ p x)
-: Γ ⊢ p_exists p :=
-begin
-  apply p_exists_intro v,
-  introv h, apply H, revert h,
-  exact eventually_weaken (•↑(eq x ∘ v)) Γ,
-end
 
 /- Actions -/
 
@@ -547,7 +531,7 @@ end
 
 @[simp]
 lemma init_trading {α} (f : α → β) (p : pred' β)
-: (• p) '∘ map f = • (p '∘ f) :=
+: (• p) ∘' ↑(map f) = • (p '∘ f) :=
 begin
   funext1,
   TL_simp [comp,init],
@@ -556,7 +540,7 @@ end
 
 @[simp]
 lemma action_trading {α} (f : α → β) (a : act β)
-: (action a '∘ map f) = ( action $ a on f ) :=
+: (action a ∘' ↑(map f)) = ( action $ a on f ) :=
 begin
   funext1,
   refl,
@@ -662,59 +646,64 @@ begin [temporal]
     apply True_p_and },
 end
 
-protected lemma induction {α}
-  {Γ : cpred α} (f : α → β) (p q : cpred α)
-  {lt : β → β → Prop}
-  (wf : well_founded lt)
-  (P : Γ ⊢ ∀∀ v, p ⋀ •eq v ∘ f  ~>  p ⋀ •flip lt v ∘ f ⋁ q)
+section induction
+
+variables {α' : Type u}
+variables  {Γ : cpred α'}
+variables  (f : var α' β) (p q : cpred α')
+variables [has_well_founded β]
+
+protected lemma induction
+  (P : Γ ⊢ ∀∀ v : β, p ⋀ •(f ≃ v)  ~>  p ⋀ •(f ≺≺ v) ⋁ q)
 : Γ ⊢ p ~> q :=
 begin [temporal]
-  have h₂ : ∀∀ V, (p ⋀ •eq V ∘ f) ~> q,
+  have h₂ : ∀∀ V : β, p ⋀ •(f ≃ V) ~> q,
   { intro V,
-    wf_induction V using wf,
+    wf_induction V,
     apply temporal.leads_to_strengthen_rhs _ _,
     show q ⋁ q ⟹ q,
     { simp [or_self], },
     apply temporal.leads_to_cancellation (P _),
-    rw_using : (p ⋀ •flip lt x ∘ f) = (∃∃v, ↑(flip lt x v) ⋀ (p ⋀ (•↑(eq v) '∘ f))),
-    { funext1,
-      TL_simp [function.comp,init] },
+    rw_using : (p ⋀ •(f ≺≺ x)) = (∃∃v, ↑(v << x) ⋀ (p ⋀ •(f ≃ v))),
+    { funext1 τ, simp only with predicate, rw exists_one_point (f.apply $ τ 0), simp,
+      intro k, simp, intros, subst k },
     apply @temporal.leads_to_disj_rng _ β ,
     apply ih_1, },
   have h₃ := temporal.leads_to_disj h₂,
-  rw_using : (∃∃ (i : β), (λ (V : β), p ⋀ •eq V ∘ f) i) = p at h₃,
+  rw_using : (∃∃ (i : β), p ⋀ •(f ≃ i)) = p at h₃,
   { funext1 i, TL_simp [function.comp,init,exists_one_point_right (f $ i 0)], },
 end
+
+end induction
 
 section inf_often_induction'
 
 parameters {α' : Type u}  {β' : Type u₀}
-parameters {Γ : cpred α'} (V : α' → β') (p q : pred' α')
-parameters {lt : β' → β' → Prop}
-parameters (wf : well_founded lt)
+parameters {Γ : cpred α'} (V : var α' β') (p q : pred' α')
+parameters [has_well_founded β']
 
-def le (x y : β') := lt x y ∨ x = y
-
-include wf
+def le (x y : β') := x << y ∨ x = y
 
 lemma inf_often_induction'
-  (S₀ : Γ ⊢ ∀∀ v, ◻◇•(↑(eq v) '∘ V) ⟶ ◇◻•↑(eq v) '∘ V ⋁ ◻◇•(↑(flip lt v ∘ V) ⋁ q))
-  (P₁ : Γ ⊢ ∀∀ v, •(p ⋀ ↑(eq v) '∘ V) ~> •(↑(flip lt v ∘ V) ⋁ q))
+  (S₀ : Γ ⊢ ∀∀ v : β', ◻◇•(V ≃ v) ⟶ ◇◻•(V ≃ v) ⋁ ◻◇•(V ≺≺ v ⋁ q))
+  (P₁ : Γ ⊢ ∀∀ v : β', •(p ⋀ V ≃ v) ~> •(V ≺≺ v ⋁ q))
 : Γ ⊢ ◻◇•p ⟶ ◻◇•q :=
 begin [temporal]
-  have Hex : ∀∀ (v : β'), •(p ⋀ eq v ∘ V) ~> (•q ⋁ ◻•-p),
+  have Hex : ∀∀ (v : β'), •(p ⋀ V ≃ v) ~> (•q ⋁ ◻•-p),
   { intro v,
-    wf_induction v using wf with v,
+    wf_induction v with v,
     have IH' := temporal.leads_to_disj_rng ih_1, clear ih_1,
-    rw_using : (∃∃ (i : β'), ↑(lt i v) ⋀ •(p ⋀ eq i ∘ V))
-             = •(flip lt v ∘ V ⋀ p) at IH',
+    rw_using : (∃∃ (i : β'), ↑(i << v) ⋀ •(p ⋀ V ≃ i))
+             = •(V ≺≺ v ⋀ p) at IH',
     { funext τ,
-      TL_simp [init,flip,function.comp], },
-    have S₂ : ∀∀ (v : β'), ◻◇•↑(flip lt v) '∘ V ⟶ ◇◻•↑(flip lt v) '∘ V ⋁ ◻◇•(↑(flip lt v) '∘ V ⋁ q),
+      TL_simp [init,flip,function.comp],
+      split ; simp ; intros, rw a_2, split ; assumption,
+      split, repeat { split, assumption }, refl  },
+    have S₂ : ∀∀ (v : β'), ◻◇•(V ≺≺ v) ⟶ ◇◻•(V ≺≺ v) ⋁ ◻◇•(V ≺≺ v ⋁ q),
     { admit },
-    have S₁ : ∀∀ (v : β'), •↑(eq v) '∘ V  ~> (◻•↑(eq v) '∘ V) ⋁ (◻◇•(flip lt v ∘ V ⋁ q)),
+    have S₁ : ∀∀ (v : β'), •(V ≃ v)  ~> ◻•(V ≃ v) ⋁ ◻◇•(V ≺≺ v ⋁ q),
     { admit }, clear S₀,
-    have H₁ : •(p ⋀ eq v ∘ V) ~> •(flip lt v ∘ V ⋀ p) ⋁ •q, admit,
+    have H₁ : •(p ⋀ V ≃ v) ~> •(V ≺≺ v ⋀ p) ⋁ •q, admit,
 --    have H₂ : (•(flip lt v ∘ V ⋀ p) ~> •q) τ , admit,
     have H₃ := temporal.leads_to_cancellation H₁ IH',
 --     have H₀ := @temporal.leads_to_trans _ (•(p ⋀ eq v ∘ V)) _ _ _ H₁ IH',
@@ -722,9 +711,9 @@ begin [temporal]
 --     have H₃ : (•(p ⋀ eq v ∘ V) ~> •q ⋁ ◻•-p) τ, admit,
 -- --    apply temporal.leads_to_cancellation _ _, },
     admit },
-  have H := @temporal.leads_to_disj _ _ (λ v, •(p ⋀ eq v ∘ V)) (•q ⋁ ◻•-p) _ Hex,
+  have H := @temporal.leads_to_disj _ _ (λ v : β', •(p ⋀ V ≃ v)) (•q ⋁ ◻•-p) _ Hex,
   dsimp [tl_leads_to] at H,
-  rw_using : (∃∃ (v : β'), •p ⋀ •(eq v ∘ V)) = •p at H,
+  rw_using : (∃∃ (v : β'), •p ⋀ •(V ≃ v)) = •p at H,
   { funext τ, TL_simp [init,function.comp,exists_one_point_right (V $ τ 0)] },
   rw [p_or_comm] at H,
   intros h,
@@ -742,13 +731,12 @@ section inf_often_induction
 
 parameters {α' : Type*} {β' : Type*}
 parameters {Γ : cpred α'} (f : α' → β') (p q : α' → Prop)
-parameters {lt : β' → β' → Prop}
-parameters (wf : well_founded lt)
+parameters [has_well_founded β']
 parameters (h₀ : Γ ⊢ ◻◇•p)
-parameters (h₁ : Γ ⊢ ◻⟦ λ s s', q s' ∨ lt (f s') (f s) ∨ (¬ p s' ∧ f s = f s') ⟧)
+parameters (h₁ : Γ ⊢ ◻⟦ λ s s', q s' ∨ f s' << f s ∨ (¬ p s' ∧ f s = f s') ⟧)
 
-def EQ (v : β') : pred' α' := eq v ∘ f
-def LT (v : β') : pred' α' := flip lt v ∘ f
+def EQ (v : β') : pred' α' := (f : var α' β') ≃ v
+def LT (v : β') : pred' α' := (f : var α' β') ≺≺ v
 
 include h₁
 include h₀
@@ -762,7 +750,7 @@ begin [temporal]
   rw next_eventually_comm at h₀,
   -- replace h₀ := coincidence' h₁ h₀,
   -- henceforth at h₀,
-  let ACT := λ (s s' : α'), q s' ∨ lt (f s') (f s) ∨ ¬p s' ∧ f s = f s',
+  let ACT := λ (s s' : α'), q s' ∨ f s' << f s ∨ ¬p s' ∧ f s = f s',
   have h₀ : ◇(⟦ACT⟧ ⋀ ⊙•↑p ⋀ •(EQ f v)),
   { suffices : ◇(⟦ACT⟧ ⋀ ⊙•↑p ⋀ •EQ f v) ⋁ ◻•EQ f v,
     { cases this, assumption,
@@ -785,7 +773,6 @@ begin [temporal]
     begin [smt] destruct h₁, end },
 end
 
-include wf
 lemma inf_often_induction
 : Γ ⊢ ◻◇•q :=
 begin [temporal]
@@ -793,7 +780,7 @@ begin [temporal]
   revert h₀,
   apply inf_often_of_leads_to,
   have inst := (λ _, classical.prop_decidable _ : decidable_pred p),
-  apply temporal.induction f (•p) (•q) wf P,
+  apply temporal.induction (f : var α' β') (•p) (•q) P,
 end
 end inf_often_induction
 

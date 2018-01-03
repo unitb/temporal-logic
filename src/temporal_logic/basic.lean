@@ -81,7 +81,7 @@ meta def apply' (e : parse texpr) : tactic unit :=
 apply e <|> (intro1 >>= λ h, (apply' ; try (tactic.exact h)) >> try (tactic.clear h))
 
 meta def TL_unfold (cs : parse ident*) (loc : parse location) : tactic unit :=
-do unfold_coes loc, unfold (cs ++ [`pred'.apply]) loc
+do unfold_coes loc, unfold (cs ++ [`var.apply,`pred'.mk]) loc
 
 meta def coes_thms : list name :=
 [`predicate.lifted₀
@@ -94,8 +94,8 @@ meta def TL_simp
    (args : parse simp_arg_list)
    (w : parse with_ident_list)
    (loc : parse location) : tactic unit :=
-do std_lmm ← mmap (map (simp_arg_type.expr ∘ to_pexpr) ∘ mk_const) (coes_thms ++ [`predicate.pred'.apply,`temporal.init_to_fun]) ,
-   repeat (simp only_kw args w loc <|> simp only_kw std_lmm w loc <|> unfold_coes loc <|> unfold [`predicate.pred'.apply,`predicate.lifted₀] loc)
+do std_lmm ← mmap (map (simp_arg_type.expr ∘ to_pexpr) ∘ mk_const) (coes_thms ++ [`predicate.var.apply,`predicate.pred'.mk,`temporal.init_to_fun]) ,
+   repeat (simp only_kw args w loc <|> simp only_kw std_lmm w loc <|> unfold_coes loc <|> unfold [`predicate.var.apply,`predicate.pred'.mk,`predicate.lifted₀] loc)
 
 end tactic.interactive
 
@@ -199,7 +199,7 @@ lemma eventually_weaken (p : cpred β)
 : (p ⟹ ◇ p) :=
 begin
   pointwise with τ h,
-  unfold eventually pred'.apply,
+  unfold eventually,
   existsi 0,
   apply h
 end
@@ -498,14 +498,14 @@ begin
   TL_simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
-lemma one_point_elim {β t} (Γ p : cpred β) (v : β → t)
-  (h : ∀ x, Γ ⊢ •(eq x ∘ v) ⟶ p)
+lemma one_point_elim {β t} (Γ p : cpred β) (v : var β t)
+  (h : ∀ x : t, Γ ⊢ •(↑x ≃ v) ⟶ p)
 : Γ ⊢ p :=
 begin
   rw [← p_forall_to_fun] at h,
   constructor,
   intros τ h',
-  apply h.apply _ h' (v $ τ 0),
+  apply h.apply  τ h' (v.apply $ τ 0),
   simp [init,function.comp],
 end
 
