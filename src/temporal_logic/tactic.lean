@@ -201,9 +201,6 @@ do `(%%τ ⊨ _) ← target,
    `[rw ← eq_judgement],
    r ← local_context >>= mfoldl (λ a h, (+) a <$> semantic_assumption τ h) 0,
    tactic.interactive.generalize none (``(↑(eq %%τ) : pred' %%α), `Γ),
-   -- trace_state,
-   -- trace τ,
-   -- trace r,
    intron r
 
 
@@ -419,14 +416,14 @@ meta def update_name (f : string → string) : name → name
 
 meta def existsi (e : expr) : temporal unit :=
 do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
-   `(cpred %%σ) ← infer_type Γ,
+   `(cpred) ← infer_type Γ,
    t' ← infer_type e,
    let v := if e.is_constant
             then update_name (λ s, s ++ "₀") e.const_name
             else if e.is_local_constant
             then update_name (λ s, s ++ "₀") e.local_pp_name
             else `v₀,
-   w ← (match_expr ``(var %%σ %%t) t' >> bind_name e v `h <|> return e),
+   w ← (match_expr ``(tvar %%t) t' >> bind_name e v `h <|> return e),
    refine ``(p_exists_to_fun %%w _)
 
 namespace interactive
@@ -650,18 +647,18 @@ meta def existsi : parse pexpr_list_or_texpr → temporal unit
 meta def clear_except :=
 tactic.interactive.clear_except
 
-meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
-do `[ try { simp only [temporal.not_init,temporal.next_init_eq_action,temporal.not_action] },
-      try { simp only [temporal.init_eq_action,temporal.not_action
-                      ,temporal.action_and_action,predicate.models_pred
-                      ,predicate.models_prop] },
-      repeat { rw ← temporal.action_imp } ],
-   get_assumptions >>= list.mmap' tactic.clear,
-   `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
-   refine ``(unlift_action %%A _),
-   tactic.intro_lst [`σ,`σ'],
-   mmap' tactic.intro ids,
-   solve1 tac
+-- meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
+-- do `[ try { simp only [temporal.not_init,temporal.next_init_eq_action,temporal.not_action] },
+--       try { simp only [temporal.init_eq_action,temporal.not_action
+--                       ,temporal.action_and_action,predicate.models_pred
+--                       ,predicate.models_prop] },
+--       repeat { rw ← temporal.action_imp } ],
+--    get_assumptions >>= list.mmap' tactic.clear,
+--    `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
+--    refine ``(unlift_action %%A _),
+--    tactic.intro_lst [`σ,`σ'],
+--    mmap' tactic.intro ids,
+--    solve1 tac
 
 meta def print := tactic.print
 
@@ -808,50 +805,50 @@ universe variables u u₀ u₁ u₂
 
 variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
 
-class persistent (p : cpred β) : Prop :=
+class persistent (p : cpred) : Prop :=
   (is_persistent : ◻p = p)
 export persistent (is_persistent)
 
-instance henceforth_persistent {p : cpred β} : persistent (◻p) :=
+instance henceforth_persistent {p : cpred} : persistent (◻p) :=
 by { constructor, simp }
 
-instance not_eventually_persistent {p : cpred β} : persistent (-◇p) :=
+instance not_eventually_persistent {p : cpred} : persistent (-◇p) :=
 by { constructor, simp }
 
-instance leads_to_persistent {p q : cpred β} : persistent (p ~> q) :=
+instance leads_to_persistent {p q : cpred} : persistent (p ~> q) :=
 by { constructor, simp [tl_leads_to,is_persistent] }
 
-instance and_persistent {p q : cpred β} [persistent p] [persistent q]
+instance and_persistent {p q : cpred} [persistent p] [persistent q]
 : persistent (p ⋀ q) :=
 by { constructor, simp [henceforth_and,is_persistent], }
 
 instance true_persistent
-: persistent (True : cpred β) :=
+: persistent (True : cpred) :=
 by { constructor, simp, }
 
 instance false_persistent
-: persistent (False : cpred β) :=
+: persistent (False : cpred) :=
 by { constructor, simp, }
 
-instance forall_persistent {p : α → cpred β} [∀ i, persistent (p i)]
+instance forall_persistent {p : α → cpred} [∀ i, persistent (p i)]
 : persistent (p_forall p) :=
 by { constructor, simp [henceforth_forall,is_persistent], }
 
-def list_persistent (xs : list $ cpred β) :=
+def list_persistent (xs : list cpred) :=
 Π q ∈ xs, persistent q
 
 lemma nil_persistent
-: @list_persistent β [] :=
+: list_persistent [] :=
 by { intros p h, cases h }
 
-lemma cons_persistent (x : cpred β) (xs : list $ cpred β)
+lemma cons_persistent (x : cpred) (xs : list $ cpred)
   [persistent x]
   (h : list_persistent xs)
 : list_persistent (x :: xs) :=
 by { intros p h, simp [list_persistent] at *,
      cases h ; [ subst p, skip ] ; auto, }
 
-def with_h_asms {β} (Γ : cpred β) : Π (xs : list (cpred β)) (x : cpred β), Prop
+def with_h_asms (Γ : cpred) : Π (xs : list (cpred)) (x : cpred), Prop
  | [] x := Γ ⊢ x
  | (x :: xs) y := Γ ⊢ x → with_h_asms xs y
 
@@ -866,9 +863,9 @@ lemma judgement_trans (p q r : pred' β)
 : p ⊢ r :=
 sorry
 
-lemma to_antecendent (xs : list (cpred β))
+lemma to_antecendent (xs : list (cpred))
   [list_persistent xs]
-  (p : cpred β)
+  (p : cpred)
   (h : ◻ xs.foldr (⋀) True ⊢ p)
 : ∀ Γ, with_h_asms Γ xs p :=
 begin
@@ -879,7 +876,7 @@ begin
   { simp at h, simp_intros [with_h_asms],
     have _inst_2 : persistent x,
     { apply _inst_1, simp, },
-    replace _inst_1 : Π (q : cpred β), q ∈ xs → persistent q,
+    replace _inst_1 : Π (q : cpred), q ∈ xs → persistent q,
     { intros, apply _inst_1, right, xassumption, },
     apply @ih_1 _inst_1, intros,
     apply h,
@@ -890,7 +887,7 @@ begin
     end }
 end
 
-lemma from_antecendent (xs : list (cpred β)) (p : cpred β)
+lemma from_antecendent (xs : list (cpred)) (p : cpred)
   (h : ∀ Γ, with_h_asms Γ xs p)
 : ◻ xs.foldr (⋀) True ⊢ p :=
 begin
@@ -909,18 +906,18 @@ begin
       apply henceforth_str, } }
 end
 
-lemma persistent_to_henceforth {p q : cpred β}
+lemma persistent_to_henceforth {p q : cpred}
   (h : ◻ p ⊢ q)
 : ◻ p ⊢ ◻ q :=
 sorry
 
 /- end monotonicity -/
 
-instance has_coe_to_fun_henceforth (Γ p q : cpred β) : has_coe_to_fun (Γ ⊢ ◻(p ⟶ q)) :=
+instance has_coe_to_fun_henceforth (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ ◻(p ⟶ q)) :=
 { F := λ _, Γ ⊢ p → Γ ⊢ q
 , coe := assume h, henceforth_str (p ⟶ q) Γ h  }
 
-instance has_coe_to_fun_leads_to (Γ p q : cpred β) : has_coe_to_fun (Γ ⊢ p ~> q) :=
+instance has_coe_to_fun_leads_to (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ p ~> q) :=
 temporal.has_coe_to_fun_henceforth _ _ _
 
 
@@ -944,19 +941,17 @@ do hs  ← get_assumptions,
 
 private meta def mk_type_list (Γ pred_t : expr)  : list expr → temporal (expr × expr)
  | [] := do
-   u ← mk_meta_univ,
-   v ← mk_meta_var (expr.sort u),
-   lift₂ prod.mk (to_expr ``(@list.nil $ cpred %%v))
-                 (to_expr ``(@temporal.nil_persistent %%v))
+   lift₂ prod.mk (to_expr ``(@list.nil cpred))
+                 (to_expr ``(temporal.nil_persistent))
  | (x :: xs) :=
    do (es,is) ← mk_type_list xs,
       v  ← mk_meta_var pred_t,
       `(_ ⊢ %%c) ← infer_type x, c' ← pp c,
       ls ← to_expr ``(list.cons %%c %%es),
       inst₀ ← to_expr ``(persistent %%c) >>= mk_instance,
-      inst ← tactic.mk_mapp `temporal.cons_persistent [none,c,es,inst₀,is],
+      inst ← tactic.mk_mapp `temporal.cons_persistent [c,es,inst₀,is],
       return (ls,inst)
-
+#check @to_antecendent
 meta def persistently (tac : itactic) : temporal unit :=
 do asms ← get_assumptions,
    `(%%Γ ⊢ %%p) ← target >>= instantiate_mvars,
@@ -966,7 +961,7 @@ do asms ← get_assumptions,
    guard (r = asms.length + 1) <|> fail format!"wrong use of context {Γ}",
    (asms',inst) ← mk_type_list Γ pred_t asms,
    ts ← mmap consequent asms,
-   h ← to_expr  ``(@to_antecendent _ %%asms' %%inst %%p) >>= note `h none,
+   h ← to_expr  ``(@to_antecendent %%asms' %%inst %%p) >>= note `h none,
    `[simp only [temporal.with_h_asms] at h],
    h ← get_local `h,
    refine ``(%%h _),
@@ -1052,7 +1047,7 @@ meta def timeless (h : expr) : temporal (option name) :=
 do try $ interactive.henceforth (loc.ns [some h.local_pp_name]),
    h ← get_local h.local_pp_name,
    `(%%Γ' ⊢ %%p) ← infer_type h | return none,
-   `(•%%p) ← return p | none <$ clear h,
+   `(@coe Prop cpred _ %%p) ← return p | none <$ clear h,
    some h.local_pp_name <$ temporal.revert h
 
 meta def interactive.note

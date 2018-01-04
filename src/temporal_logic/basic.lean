@@ -9,6 +9,8 @@ Strenghtening lemmas to facilitate the stripping of small details in application
 Expected shape `∀ p : pred' α, ⊩ f p ⟶ g p`
 " }
 
+local attribute [-simp] or.comm or.left_comm or.assoc and.comm and.left_comm and.assoc
+
 namespace tactic.interactive
 open lean interactive.types
 open interactive lean.parser tactic
@@ -122,41 +124,44 @@ universe variables u u₀ u₁ u₂
 variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
 
 @[reducible]
-def cpred (β : Type u) := pred' (stream β)
+def tvar := var ℕ
+
+@[reducible]
+def cpred := tvar Prop
 
 def act (β : Sort u) := β → β → Prop
 
-def action (a : act β) : cpred β :=
-⟨ λ τ, a (τ 0) (τ 1) ⟩
+-- def action (a : act β) : cpred :=
+-- ⟨ λ τ, a (τ 0) (τ 1) ⟩
 
-def eventually (p : cpred β) : cpred β :=
-⟨ λ τ, ∃ i, p.apply (τ.drop i) ⟩
-def henceforth (p : cpred β) : cpred β :=
-⟨ λ τ, Π i, p.apply (τ.drop i) ⟩
-def next (p : cpred β) : cpred β :=
-⟨ λ τ, p.apply τ.tail ⟩
-def init (p : pred' β) : cpred β :=
-⟨ λ τ, p.apply (τ 0) ⟩
+def eventually (p : cpred) : cpred :=
+⟨ λ i, ∃ j, p.apply (i+j) ⟩
+def henceforth (p : cpred) : cpred :=
+⟨ λ i, ∀ j, p.apply (i+j) ⟩
+def next (p : tvar α) : tvar α :=
+⟨ λ i, p.apply (i.succ) ⟩
+-- def init (p : pred' β) : cpred :=
+-- ⟨ λ τ, p.apply (τ 0) ⟩
 
-prefix `•`:85 := init
+-- prefix `•`:85 := init
 prefix `⊙`:90 := next
 prefix `◇`:95 := eventually -- \di
 prefix `◻`:95 := henceforth -- \sqw
-notation `⟦`:max act `⟧`:0 := action act
+-- notation `⟦`:max act `⟧`:0 := action act
 -- notation `⦃` act `⦄`:95 := ew act
 
-lemma init_to_fun (p : pred' β) (τ : stream β) : (•p).apply τ = p.apply (τ 0) := rfl
+-- lemma init_to_fun (p : pred' β) (τ : stream β) : (•p).apply τ = p.apply (τ 0) := rfl
 
-def tl_leads_to (p q : cpred β) : cpred β :=
+def tl_leads_to (p q : cpred) : cpred :=
 ◻(p ⟶ ◇q)
 
 infix ` ~> `:55 := tl_leads_to
 
 @[reducible]
-def tl_imp (h p q : cpred β) : Prop :=
+def tl_imp (h p q : cpred) : Prop :=
 ctx_impl (◻ h) p q
 
-lemma tl_imp_intro (h : cpred β) {p q : cpred β}
+lemma tl_imp_intro (h : cpred) {p q : cpred}
   (h' : ◻h ⟹ (p ⟶ q))
 : tl_imp h p q :=
 begin
@@ -164,7 +169,7 @@ begin
   exact (h' True).apply σ trivial,
 end
 
-lemma tl_imp_elim (h : cpred β) {p q : cpred β}
+lemma tl_imp_elim (h : cpred) {p q : cpred}
   (h' : tl_imp h p q)
 : ◻h ⟹ (p ⟶ q) :=
 begin
@@ -172,13 +177,13 @@ begin
   apply intro_p_imp h',
 end
 
-lemma tl_imp_intro' (h : cpred β) {p q : cpred β}
+lemma tl_imp_intro' (h : cpred) {p q : cpred}
   (h' : p ⟹ q)
 : tl_imp h p q :=
 h' _
 
 @[simp]
-lemma hence_true : ◻(True : cpred β) = True :=
+lemma hence_true : ◻(True : cpred) = True :=
 begin
   funext1,
   split ; intro h,
@@ -186,7 +191,7 @@ begin
   { intro, trivial }
 end
 
-lemma tl_imp_elim' {p q : cpred β}
+lemma tl_imp_elim' {p q : cpred}
   (h : tl_imp True p q)
 : p ⟹ q :=
 begin
@@ -195,7 +200,7 @@ begin
 end
 
 @[strengthening]
-lemma eventually_weaken (p : cpred β)
+lemma eventually_weaken (p : cpred)
 : (p ⟹ ◇ p) :=
 begin
   pointwise with τ h,
@@ -204,7 +209,7 @@ begin
   apply h
 end
 open stream
--- lemma eventually_weaken' {p : cpred β} {τ} (i) :
+-- lemma eventually_weaken' {p : cpred} {τ} (i) :
 --   p (drop i τ) → (◇ p) τ :=
 -- begin
 --   intros h,
@@ -213,99 +218,97 @@ open stream
 --   apply h
 -- end
 
--- lemma eventually_of_next {p : cpred β}
+-- lemma eventually_of_next {p : cpred}
 -- : ⊙p ⟹ ◇p :=
 -- sorry
 
 @[strengthening]
-lemma next_entails_eventually (p : cpred β)
+lemma next_entails_eventually (p : cpred)
 : ⊙p ⟹ ◇p :=
 sorry
 
 @[strengthening]
-lemma henceforth_entails_next (p : cpred β)
+lemma henceforth_entails_next (p : cpred)
 : ◻p ⟹ ⊙p :=
 sorry
 
 @[strengthening]
-lemma henceforth_str (p : cpred β) :
+lemma henceforth_str (p : cpred) :
   (◻p ⟹ p) :=
 begin
   pointwise with τ h, apply h 0
 end
 
--- lemma henceforth_str' {p : cpred β} {τ} (i) :
+-- lemma henceforth_str' {p : cpred} {τ} (i) :
 --   (◻p) τ → p (drop i τ) :=
 -- begin
 --   intros h, apply h i
 -- end
 
--- lemma henceforth_delay {p : cpred β} {τ} (i) :
+-- lemma henceforth_delay {p : cpred} {τ} (i) :
 --   (◻p) τ → (◻p) (drop i τ) :=
 -- begin
 --   intros h j, simp [drop_drop], apply h
 -- end
 
-lemma init_eq_action {p : pred' β}
-: •(p : pred' β) = ⟦ λ s s', s ⊨ p ⟧ :=
-rfl
+-- lemma init_eq_action {p : pred' β}
+-- : •(p : pred' β) = ⟦ λ s s', s ⊨ p ⟧ :=
+-- rfl
 
-lemma next_init_eq_action {p : pred' β}
-: ⊙•(p : pred' β) = ⟦ λ s s', s' ⊨ p ⟧ :=
-rfl
+-- lemma next_init_eq_action {p : pred' β}
+-- : ⊙•(p : pred' β) = ⟦ λ s s', s' ⊨ p ⟧ :=
+-- rfl
 
-lemma not_action {A : act β}
-: -⟦ A ⟧ = ⟦ λ s s', ¬ A s s' ⟧ :=
-rfl
+-- lemma not_action {A : act β}
+-- : -⟦ A ⟧ = ⟦ λ s s', ¬ A s s' ⟧ :=
+-- rfl
 
-lemma action_false
-: (⟦ λ _ _, false ⟧ : cpred β) = False :=
-by { funext x, refl }
+-- lemma action_false
+-- : (⟦ λ _ _, false ⟧ : cpred) = False :=
+-- by { funext x, refl }
 
-lemma action_eq_next {p : β → β → Prop}
-:  (⟦ p ⟧ : cpred β) = (∃∃ s : β, •eq s ⋀ ⊙•p s) :=
-begin
-  funext τ, TL_unfold action p_exists pred.p_exists,
-  split
-  ; try {TL_simp [next]}
-  ; intros
-  ; try {subst x}
-  ; assumption,
-end
+-- lemma action_eq_next {p : β → β → Prop}
+-- :  (⟦ p ⟧ : cpred) = (∃∃ s : β, •eq s ⋀ ⊙•p s) :=
+-- begin
+--   funext τ, TL_unfold action p_exists pred.p_exists,
+--   split
+--   ; try {TL_simp [next]}
+--   ; intros
+--   ; try {subst x}
+--   ; assumption,
+-- end
 
-variables {Γ : cpred β}
+variables {Γ : cpred}
 
-lemma unlift_action (A : act β)
-  (h : ∀ σ σ', A σ σ')
-: Γ ⊢ ⟦ A ⟧ :=
-begin
-  constructor, simp_intros [action],
-  apply h
-end
+-- lemma unlift_action (A : act β)
+--   (h : ∀ σ σ', A σ σ')
+-- : Γ ⊢ ⟦ A ⟧ :=
+-- begin
+--   constructor, simp_intros [action],
+--   apply h
+-- end
 
-
-lemma henceforth_next_intro (p : cpred β)
+lemma henceforth_next_intro (p : cpred)
 : ◻p = ◻(p ⋀ ⊙p) := sorry
 
 @[simp]
-lemma eventually_eventually (p : cpred β) : ◇◇ p = ◇ p :=
+lemma eventually_eventually (p : cpred) : ◇◇ p = ◇ p :=
 begin
-  funext τ,
+  funext k,
   split
   ; unfold eventually
   ; intro h
   ; cases h with i h,
   { cases h with j h,
-    existsi (j+i),
-    rw drop_drop at h,
-    apply h },
+    existsi (i+j),
+    simp at h, apply h, },
   { existsi (0 : ℕ),
     existsi i,
     apply h }
 end
 
 @[simp]
-lemma henceforth_henceforth (p : cpred β) : ◻◻ p = ◻ p :=
+lemma henceforth_henceforth (p : cpred) : ◻◻ p = ◻ p :=
 begin
   funext _,
   split
@@ -319,7 +322,7 @@ begin
     apply h }
 end
 
--- lemma henceforth_drop {p : cpred β} {τ} (i : ℕ) :
+-- lemma henceforth_drop {p : cpred} {τ} (i : ℕ) :
 -- (◻p) τ → (◻p) (τ.drop i) :=
 -- begin
 --   intro h,
@@ -330,7 +333,7 @@ end
 /- True / False -/
 
 @[simp]
-lemma hence_false : ◻(False : cpred β) = False :=
+lemma hence_false : ◻(False : cpred) = False :=
 begin
   funext _,
   split ; intro h,
@@ -339,7 +342,7 @@ begin
 end
 
 @[simp]
-lemma event_false : ◇(False : cpred β) = False :=
+lemma event_false : ◇(False : cpred) = False :=
 begin
   funext _,
   split ; intro h,
@@ -347,17 +350,17 @@ begin
   { cases h }
 end
 
-@[simp]
-lemma init_false : (•False) = (False : cpred β) :=
-begin
-  funext1,
-  split ; intro h,
-  { cases h },
-  { cases h }
-end
+-- @[simp]
+-- lemma init_false : (•False) = (False : cpred) :=
+-- begin
+--   funext1,
+--   split ; intro h,
+--   { cases h },
+--   { cases h }
+-- end
 
 @[simp]
-lemma eventually_true : ◇(True : cpred β) = True :=
+lemma eventually_true : ◇(True : cpred) = True :=
 begin
   funext1,
   split ; intro h,
@@ -365,24 +368,24 @@ begin
   { apply exists.intro 0, trivial }
 end
 
-@[simp]
-lemma init_true : (•True) = (True : cpred β) :=
-begin
-  funext1,
-  split ; intro h ; trivial,
-end
+-- @[simp]
+-- lemma init_true : (•True) = (True : cpred) :=
+-- begin
+--   funext1,
+--   split ; intro h ; trivial,
+-- end
 
-lemma init_exists {t} (p : t → pred' β)
-: •(∃∃ i, p i) = ∃∃ i, •p i :=
-begin
-  funext x,
-  TL_simp [p_exists,pred.p_exists,init]
-end
+-- lemma init_exists {t} (p : t → pred' β)
+-- : •(∃∃ i, p i) = ∃∃ i, •p i :=
+-- begin
+--   funext x,
+--   TL_simp [p_exists,pred.p_exists,init]
+-- end
 
 /- monotonicity -/
 
 @[monotonic]
-lemma eventually_tl_imp_eventually {h p q : cpred β}
+lemma eventually_tl_imp_eventually {h p q : cpred}
   (f : tl_imp h p q)
 : tl_imp h (◇p) (◇q) :=
 begin
@@ -396,7 +399,7 @@ begin
 end
 
 @[monotonic]
-lemma eventually_entails_eventually {p q : cpred β}
+lemma eventually_entails_eventually {p q : cpred}
   (f : p ⟹ q)
 : (◇p) ⟹ (◇q) :=
 begin
@@ -404,7 +407,7 @@ begin
   monotonicity (tl_imp_intro' _ f),
 end
 
-lemma eventually_imp_eventually {p q : cpred β} {Γ}
+lemma eventually_imp_eventually {p q : cpred} {Γ}
  (f : Γ ⊢ ◻ (p ⟶ q))
 : Γ ⊢ (◇p) ⟶ (◇q) :=
 begin
@@ -415,20 +418,20 @@ begin
 end
 
 @[monotonic]
-lemma henceforth_tl_imp_henceforth {h p q : cpred β}
+lemma henceforth_tl_imp_henceforth {h p q : cpred}
   (f : tl_imp h p q)
 : tl_imp h (◻p) (◻q) :=
 begin
   unfold tl_imp ctx_impl at *,
-  pointwise f with τ h',
-  TL_simp [henceforth], intro_mono i,
+  pointwise f with i h',
+  simp [henceforth], intro_mono i,
   apply f ,
   rw ← henceforth_henceforth at h',
   apply  h',
 end
 
 @[monotonic]
-lemma henceforth_entails_henceforth {p q : cpred β}
+lemma henceforth_entails_henceforth {p q : cpred}
   (f : p ⟹ q)
 : (◻p) ⟹ (◻q) :=
 begin
@@ -436,7 +439,7 @@ begin
   monotonicity (tl_imp_intro' _ f),
 end
 
-lemma henceforth_imp_henceforth {p q : cpred β} {Γ}
+lemma henceforth_imp_henceforth {p q : cpred} {Γ}
   (h : Γ ⊢ ◻ (p ⟶ q))
 : Γ ⊢ (◻p) ⟶ (◻q) :=
 begin
@@ -446,31 +449,31 @@ begin
   auto,
 end
 
-@[monotonic]
-lemma init_entails_init {p q : pred' β} (f : p ⟹ q)
-: (•p) ⟹ (•q) :=
-begin
-  pointwise f with i,
-  xassumption,
-end
+-- @[monotonic]
+-- lemma init_entails_init {p q : pred' β} (f : p ⟹ q)
+-- : (•p) ⟹ (•q) :=
+-- begin
+--   pointwise f with i,
+--   xassumption,
+-- end
 
-lemma inf_often_entails_inf_often {p q : cpred β} (f : p ⟹ q)
+lemma inf_often_entails_inf_often {p q : cpred} (f : p ⟹ q)
 : ◻◇p ⟹ ◻◇q :=
 by monotonicity f
 
-lemma inf_often_entails_inf_often' {p q : pred' β} (f : p ⟹ q)
-: ◻◇•p ⟹ ◻◇•q :=
-by monotonicity f
+-- lemma inf_often_entails_inf_often' {p q : pred' β} (f : p ⟹ q)
+-- : ◻◇•p ⟹ ◻◇•q :=
+-- by monotonicity f
 
-lemma stable_entails_stable {p q : cpred β} (f : p ⟹ q)
+lemma stable_entails_stable {p q : cpred} (f : p ⟹ q)
 : ◇◻p ⟹ ◇◻q :=
 by monotonicity f
 
-lemma stable_entails_stable' {p q : pred' β} (f : p ⟹ q)
-: ◇◻•p ⟹ ◇◻•q :=
-by monotonicity f
+-- lemma stable_entails_stable' {p q : pred' β} (f : p ⟹ q)
+-- : ◇◻•p ⟹ ◇◻•q :=
+-- by monotonicity f
 
-lemma henceforth_and (p q : cpred β)
+lemma henceforth_and (p q : cpred)
 : ◻(p ⋀ q) = ◻p ⋀ ◻q :=
 begin
   funext1,
@@ -482,31 +485,31 @@ begin
   { apply a.right },
 end
 
-lemma henceforth_forall (P : α → cpred β)
+lemma henceforth_forall (P : α → cpred)
 : ◻(∀∀ x, P x) = ∀∀ x, ◻P x :=
 begin
   funext1,
-  TL_simp [henceforth,p_forall],
+  simp [henceforth,p_forall],
   rw forall_swap,
 end
 
 @[simp]
-lemma not_eventually {β} (p : cpred β)
+lemma not_eventually (p : cpred)
 : (-◇p) = (◻-p) :=
 begin
   funext1,
-  TL_simp [henceforth,not_forall_iff_exists_not,eventually],
+  simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
-lemma one_point_elim {β t} (Γ p : cpred β) (v : var β t)
-  (h : ∀ x : t, Γ ⊢ •(↑x ≃ v) ⟶ p)
+lemma one_point_elim {t} (Γ p : cpred) (v : tvar t)
+  (h : ∀ x : t, Γ ⊢ (↑x ≃ v) ⟶ p)
 : Γ ⊢ p :=
 begin
   rw [← p_forall_to_fun] at h,
   constructor,
-  intros τ h',
-  apply h.apply  τ h' (v.apply $ τ 0),
-  simp [init,function.comp],
+  intros i h',
+  apply h.apply  i h' (v.apply $ i),
+  simp,
 end
 
 end temporal
