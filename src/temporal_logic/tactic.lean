@@ -468,9 +468,7 @@ do `(%%Γ ⊢ _) ← target,
    try $ tactic.interactive.simp ff
        (map simp_arg_type.expr [``(function.comp),``(temporal.init)]) []
        (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
-   tactic.clear hΓ,
-   tactic.clear Γ,
-   solve1 tac
+   done <|> solve1 (tactic.clear hΓ >> tactic.clear Γ >> tac)
 
 meta def same_type (e₀ e₁ : expr) : temporal unit :=
 do t₀ ← infer_type e₀,
@@ -584,8 +582,25 @@ do p' ← to_expr e.2,
       apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
       ; [ intros [h₀] , intros [h₁] ],
       tactic.swap
+    | `(∃∃ x : %%t, %%e') := do
+      let h₀ : name := (ids.nth 0).get_or_else `a,
+      let h₁ : name := (ids.nth 1).get_or_else `a,
+      h ← note `h none p',
+      when p'.is_local_constant (tactic.clear p'),
+      revert [`h], h ← to_expr ``(p_exists_imp_eq_p_forall_imp _ _),
+      tactic.rewrite_target h, intros [h₀,h₁]
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
+
+meta def by_cases (q : parse texpr) (n : parse (tk "with" *> ident)?): tactic unit :=
+let h := n.get_or_else `h in
+cases (none, ``(predicate.em %%q)) [h,h]
+
+meta def assume_negation (n : parse (tk "with" *> ident)?) : temporal unit :=
+do `(_ ⊢ %%t) ← target,
+   let h := n.get_or_else `h,
+   cases (none, ``(predicate.em %%t)) [h,h],
+   solve1 (do h ← get_local h, tactic.exact h)
 
 meta def induction
   (obj : parse texpr)
@@ -636,9 +651,11 @@ meta def clear_except :=
 tactic.interactive.clear_except
 
 meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
-do `[ try { simp only [not_init,next_init_eq_action,not_action] },
-      try { simp only [init_eq_action,not_action,action_and_action,models_pred,models_prop] },
-      repeat { rw ← action_imp } ],
+do `[ try { simp only [temporal.not_init,temporal.next_init_eq_action,temporal.not_action] },
+      try { simp only [temporal.init_eq_action,temporal.not_action
+                      ,temporal.action_and_action,predicate.models_pred
+                      ,predicate.models_prop] },
+      repeat { rw ← temporal.action_imp } ],
    get_assumptions >>= list.mmap' tactic.clear,
    `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
    refine ``(unlift_action %%A _),
