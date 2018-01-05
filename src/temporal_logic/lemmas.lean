@@ -63,18 +63,6 @@ sorry
 -- : •(p ⋀ q) = •p ⋀ •q :=
 -- rfl
 
--- lemma action_imp (p q : act β)
--- : (⟦ λ s s' : β, p s s' → q s s' ⟧ : cpred) = ⟦ p ⟧ ⟶ ⟦ q ⟧ :=
--- rfl
-
--- lemma action_and_action (p q : act β)
--- : ⟦ p ⟧ ⋀ ⟦ q ⟧ = (⟦ λ s s' : β, p s s' ∧ q s s' ⟧ : cpred) :=
--- rfl
-
--- lemma action_or_action (p q : act β)
--- : ⟦ p ⟧ ⋁ ⟦ q ⟧ = (⟦ λ s s' : β, p s s' ∨ q s s' ⟧ : cpred) :=
--- rfl
-
 /- end distributivity -/
 
 lemma eventually_of_leads_to {p q : cpred} {Γ}
@@ -538,7 +526,7 @@ open function
 
 -- @[simp]
 -- lemma init_trading {α} (f : α → β) (p : pred' β)
--- : (• p) ∘' ↑(map f) = • (p '∘ f) :=
+-- : (• p) ;; ↑(map f) = • (p '∘ f) :=
 -- begin
 --   funext1,
 --   TL_simp [comp,init],
@@ -547,7 +535,7 @@ open function
 
 -- @[simp]
 -- lemma action_trading {α} (f : α → β) (a : act β)
--- : (action a ∘' ↑(map f)) = ( action $ a on f ) :=
+-- : (action a ;; ↑(map f)) = ( action $ a on f ) :=
 -- begin
 --   funext1,
 --   refl,

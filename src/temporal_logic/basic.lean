@@ -131,8 +131,8 @@ def cpred := tvar Prop
 
 def act (β : Sort u) := β → β → Prop
 
--- def action (a : act β) : cpred :=
--- ⟨ λ τ, a (τ 0) (τ 1) ⟩
+def action (a : act α) (v : tvar α) : cpred :=
+⟨ λ i, a (v.apply i) (v.apply $ i.succ) ⟩
 
 def eventually (p : cpred) : cpred :=
 ⟨ λ i, ∃ j, p.apply (i+j) ⟩
@@ -148,7 +148,9 @@ prefix `⊙`:90 := next
 prefix `◇`:95 := eventually -- \di
 prefix `◻`:95 := henceforth -- \sqw
 -- notation `⟦`:max act `⟧`:0 := action act
--- notation `⦃` act `⦄`:95 := ew act
+notation `⟦ `:max v ` <> `:50 R ` ⟧`:0 := action R v
+-- infix ` ⊫ ` --
+  -- 216 -- notation `⦃` act `⦄`:95 := ew act
 
 -- lemma init_to_fun (p : pred' β) (τ : stream β) : (•p).apply τ = p.apply (τ 0) := rfl
 
@@ -251,21 +253,44 @@ end
 --   intros h j, simp [drop_drop], apply h
 -- end
 
--- lemma init_eq_action {p : pred' β}
--- : •(p : pred' β) = ⟦ λ s s', s ⊨ p ⟧ :=
--- rfl
+local infix ` <$> ` := fun_app_to_var
+local infix ` <*> ` := combine_var
 
--- lemma next_init_eq_action {p : pred' β}
--- : ⊙•(p : pred' β) = ⟦ λ s s', s' ⊨ p ⟧ :=
--- rfl
+lemma init_eq_action {p : α → Prop} (v : tvar α)
+: (p <$> v) = ⟦ v <> λ s s', p s ⟧ :=
+by { cases v, refl }
 
--- lemma not_action {A : act β}
--- : -⟦ A ⟧ = ⟦ λ s s', ¬ A s s' ⟧ :=
--- rfl
+lemma init_eq_action' {p : pred' α} (v : tvar α)
+: (p ;; v) = ⟦ v <> λ s s', p.apply s ⟧ :=
+by { cases v, cases p, refl }
 
--- lemma action_false
--- : (⟦ λ _ _, false ⟧ : cpred) = False :=
--- by { funext x, refl }
+lemma next_eq_action {p : α → Prop} (v : tvar α)
+: ⊙(p <$> v) = ⟦ v <> λ s s' : α, p s' ⟧ :=
+by { cases v, refl }
+
+lemma next_eq_action' {p : pred' α} (v : tvar α)
+: ⊙(p ;; v) = ⟦ v <> λ s s' : α, p.apply s' ⟧ :=
+by { cases v, cases p, refl }
+
+lemma not_action {A : act α} (v : tvar α)
+: -⟦ v <> A ⟧ = ⟦ v <> λ s s', ¬ A s s' ⟧ :=
+rfl
+
+lemma action_imp (p q : act α) (v : tvar α)
+: (⟦ v <> λ s s' : α, p s s' → q s s' ⟧ : cpred) = ⟦ v <> p ⟧ ⟶ ⟦ v <> q ⟧ :=
+rfl
+
+lemma action_and_action (p q : act α) (v : tvar α)
+: ⟦ v <> p ⟧ ⋀ ⟦ v <> q ⟧ = ⟦ v <> λ s s' : α, p s s' ∧ q s s' ⟧ :=
+rfl
+
+lemma action_or_action (p q : act α) (v : tvar α)
+: ⟦ v <> p ⟧ ⋁ ⟦ v <> q ⟧ = ⟦ v <> λ s s' : α, p s s' ∨ q s s' ⟧ :=
+rfl
+
+lemma action_false (v : tvar α)
+: (⟦ v <> λ _ _, false ⟧ : cpred) = False :=
+by { funext x, refl }
 
 -- lemma action_eq_next {p : β → β → Prop}
 -- :  (⟦ p ⟧ : cpred) = (∃∃ s : β, •eq s ⋀ ⊙•p s) :=
@@ -280,13 +305,13 @@ end
 
 variables {Γ : cpred}
 
--- lemma unlift_action (A : act β)
---   (h : ∀ σ σ', A σ σ')
--- : Γ ⊢ ⟦ A ⟧ :=
--- begin
---   constructor, simp_intros [action],
---   apply h
--- end
+lemma unlift_action (A : act α) (v : tvar α)
+  (h : ∀ σ σ', A σ σ')
+: Γ ⊢ ⟦ v <> A ⟧ :=
+begin
+  constructor, simp_intros [action],
+  apply h
+end
 
 lemma henceforth_next_intro (p : cpred)
 : ◻p = ◻(p ⋀ ⊙p) := sorry

@@ -646,19 +646,20 @@ meta def existsi : parse pexpr_list_or_texpr → temporal unit
 
 meta def clear_except :=
 tactic.interactive.clear_except
-
--- meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
--- do `[ try { simp only [temporal.not_init,temporal.next_init_eq_action,temporal.not_action] },
---       try { simp only [temporal.init_eq_action,temporal.not_action
---                       ,temporal.action_and_action,predicate.models_pred
---                       ,predicate.models_prop] },
---       repeat { rw ← temporal.action_imp } ],
---    get_assumptions >>= list.mmap' tactic.clear,
---    `(%%Γ ⊢ ⟦ %%A ⟧) ← target,
---    refine ``(unlift_action %%A _),
---    tactic.intro_lst [`σ,`σ'],
---    mmap' tactic.intro ids,
---    solve1 tac
+#check predicate.p_not_comp
+#check temporal.next_eq_action'
+meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
+do `[ try { simp only [predicate.p_not_comp,temporal.next_eq_action,temporal.next_eq_action',temporal.not_action] },
+      try { simp only [predicate.p_not_comp,temporal.init_eq_action,temporal.init_eq_action',temporal.not_action
+                      ,temporal.action_and_action,predicate.models_pred
+                      ,predicate.models_prop] },
+      repeat { rw ← temporal.action_imp } ],
+   get_assumptions >>= list.mmap' tactic.clear,
+   `(%%Γ ⊢ temporal.action %%A  %%v ) ← target,
+   refine ``(temporal.unlift_action %%A %%v _),
+   tactic.intro_lst [`σ,`σ'],
+   mmap' tactic.intro ids,
+   solve1 tac
 
 meta def print := tactic.print
 
