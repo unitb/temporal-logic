@@ -527,9 +527,16 @@ mmap get_local ns >>= mmap' temporal.revert
 meta def exact (e : parse texpr) : temporal unit :=
 tactic.interactive.exact e
 
+meta def refine (e : parse texpr) : temporal unit :=
+tactic.interactive.refine e
+
 meta def apply (q : parse texpr) : temporal unit :=
 do l ← i_to_expr_for_apply q,
    tactic.apply l <|> strengthening (tactic.apply l)
+                  <|> tactic.apply l -- we try `tactic.apply l` again
+                                     -- knowing that if we go back to
+                                     -- it, it will fail and we'll have
+                                     -- a proper error message
 
 meta def trivial : temporal unit :=
 `[apply of_eq_true (True_eq_true _)]
@@ -646,8 +653,7 @@ meta def existsi : parse pexpr_list_or_texpr → temporal unit
 
 meta def clear_except :=
 tactic.interactive.clear_except
-#check predicate.p_not_comp
-#check temporal.next_eq_action'
+
 meta def action (ids : parse with_ident_list) (tac : tactic.interactive.itactic) : temporal unit :=
 do `[ try { simp only [predicate.p_not_comp,temporal.next_eq_action,temporal.next_eq_action',temporal.not_action] },
       try { simp only [predicate.p_not_comp,temporal.init_eq_action,temporal.init_eq_action',temporal.not_action
@@ -952,7 +958,7 @@ private meta def mk_type_list (Γ pred_t : expr)  : list expr → temporal (expr
       inst₀ ← to_expr ``(persistent %%c) >>= mk_instance,
       inst ← tactic.mk_mapp `temporal.cons_persistent [c,es,inst₀,is],
       return (ls,inst)
-#check @to_antecendent
+
 meta def persistently (tac : itactic) : temporal unit :=
 do asms ← get_assumptions,
    `(%%Γ ⊢ %%p) ← target >>= instantiate_mvars,

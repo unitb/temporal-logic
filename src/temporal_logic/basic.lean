@@ -17,87 +17,87 @@ open interactive lean.parser tactic
 open list (hiding map) has_map predicate
 local postfix *:9001 := many
 
-meta def apply_left (r : parse texpr) : tactic unit :=
-transitivity none ; [apply r >> done, skip]
+-- meta def apply_left (r : parse texpr) : tactic unit :=
+-- transitivity none ; [apply r >> done, skip]
 
-meta def apply_right (r : parse texpr) : tactic unit :=
-transitivity none ; [skip, apply r >> done]
+-- meta def apply_right (r : parse texpr) : tactic unit :=
+-- transitivity none ; [skip, apply r >> done]
 
-meta def references_to (v : expr) : tactic (list expr) :=
-do ctx ← local_context,
-   ctx_t ← mmap infer_type ctx,
-   return $ map prod.fst $ filter ((λ t, v.occurs t) ∘ prod.snd) $ zip ctx ctx_t
+-- meta def references_to (v : expr) : tactic (list expr) :=
+-- do ctx ← local_context,
+--    ctx_t ← mmap infer_type ctx,
+--    return $ map prod.fst $ filter ((λ t, v.occurs t) ∘ prod.snd) $ zip ctx ctx_t
 
--- meta def focus_rhs (tac : itactic) : tactic unit :=
--- do `(_ ⟹ %%p) ← target <|> fail "expecting goal: _ ⟹ _",
---    t ← infer_type p,
---    q ← mk_meta_var t,
---    e ← to_expr ``(%%q ⟹ %%p),
---    h ← assert `h _, _
+-- -- meta def focus_rhs (tac : itactic) : tactic unit :=
+-- -- do `(_ ⟹ %%p) ← target <|> fail "expecting goal: _ ⟹ _",
+-- --    t ← infer_type p,
+-- --    q ← mk_meta_var t,
+-- --    e ← to_expr ``(%%q ⟹ %%p),
+-- --    h ← assert `h _, _
 
-meta def mk_local_hyp (a' : expr) (hyp : pexpr) : tactic (expr × expr × expr) :=
-do e' ← to_expr hyp,
-   e ← if e'.is_local_constant
-       then return e'
-       else note `h none e',
-   (expr.app f a)  ← infer_type e,
-   is_def_eq a a' <|> fail format!"{a} and {a'} are not the same argument",
-   return (e, f, a)
+-- meta def mk_local_hyp (a' : expr) (hyp : pexpr) : tactic (expr × expr × expr) :=
+-- do e' ← to_expr hyp,
+--    e ← if e'.is_local_constant
+--        then return e'
+--        else note `h none e',
+--    (expr.app f a)  ← infer_type e,
+--    is_def_eq a a' <|> fail format!"{a} and {a'} are not the same argument",
+--    return (e, f, a)
 
-meta def revert_pred (a : expr) (h : expr × expr × expr) : tactic unit :=
-do (expr.app g a') ← target,
-   is_def_eq a a',
-   tactic.revert h.1,
-   refine ``(impl_of_p_impl %%a _)
-   -- to_expr ``((%%h.2.1 ⟶ %%g) %%a) >>= tactic.change
+-- meta def revert_pred (a : expr) (h : expr × expr × expr) : tactic unit :=
+-- do (expr.app g a') ← target,
+--    is_def_eq a a',
+--    tactic.revert h.1,
+--    refine ``(impl_of_p_impl %%a _)
+--    -- to_expr ``((%%h.2.1 ⟶ %%g) %%a) >>= tactic.change
 
-meta def revert_p (hyps : parse pexpr_list_or_texpr) : tactic unit :=
-do (expr.app g a) ← target,
-   hyps' ← mmap (mk_local_hyp a) hyps,
-   ls ← references_to a,
-   let vars := hyps'.map prod.fst,
-   mmap tactic.clear (ls.diff vars),
-   if a.is_local_constant then do -- <|> fail format!"{a} is not a local constant",
-     mmap' (revert_pred a) hyps',
-     () <$ tactic.revert a
-   else (mmap' (revert_pred a) hyps' >> tactic.generalize a),
-   -- to_expr ``(entails_of_forall_impl _) >>= infer_type >>= trace,
-   -- trace_state
-   tactic.refine ``(entails_of_forall_impl _)
-   -- to_expr ``(%%f ⟹ %%g) >>= tactic.change
+-- meta def revert_p (hyps : parse pexpr_list_or_texpr) : tactic unit :=
+-- do (expr.app g a) ← target,
+--    hyps' ← mmap (mk_local_hyp a) hyps,
+--    ls ← references_to a,
+--    let vars := hyps'.map prod.fst,
+--    mmap tactic.clear (ls.diff vars),
+--    if a.is_local_constant then do -- <|> fail format!"{a} is not a local constant",
+--      mmap' (revert_pred a) hyps',
+--      () <$ tactic.revert a
+--    else (mmap' (revert_pred a) hyps' >> tactic.generalize a),
+--    -- to_expr ``(entails_of_forall_impl _) >>= infer_type >>= trace,
+--    -- trace_state
+--    tactic.refine ``(entails_of_forall_impl _)
+--    -- to_expr ``(%%f ⟹ %%g) >>= tactic.change
 
-private meta def apply_trans : expr → expr → list expr → tactic unit
- | _ _ [] := return ()
- | p q (e :: es) := refine ``(@function.comp %%p %%e %%q _ _) ; [ skip , apply_trans p e es ]
+-- private meta def apply_trans : expr → expr → list expr → tactic unit
+--  | _ _ [] := return ()
+--  | p q (e :: es) := refine ``(@function.comp %%p %%e %%q _ _) ; [ skip , apply_trans p e es ]
 
-meta def imp_transitivity : parse (optional pexpr_list_or_texpr) → tactic unit
- | none :=
-do `(%%p → %%q) ← target <|> fail "expecting implication",
-   refine ``(@function.comp %%p _ %%q _ _) >> rotate_left 1
- | (some xs) :=
-do xs' ← mmap to_expr xs,
-   `(%%p → %%q) ← target <|> fail "expecting implication",
-   focus1 (apply_trans p q xs'.reverse)
+-- meta def imp_transitivity : parse (optional pexpr_list_or_texpr) → tactic unit
+--  | none :=
+-- do `(%%p → %%q) ← target <|> fail "expecting implication",
+--    refine ``(@function.comp %%p _ %%q _ _) >> rotate_left 1
+--  | (some xs) :=
+-- do xs' ← mmap to_expr xs,
+--    `(%%p → %%q) ← target <|> fail "expecting implication",
+--    focus1 (apply_trans p q xs'.reverse)
 
-meta def apply' (e : parse texpr) : tactic unit :=
-apply e <|> (intro1 >>= λ h, (apply' ; try (tactic.exact h)) >> try (tactic.clear h))
+-- meta def apply' (e : parse texpr) : tactic unit :=
+-- apply e <|> (intro1 >>= λ h, (apply' ; try (tactic.exact h)) >> try (tactic.clear h))
 
 meta def TL_unfold (cs : parse ident*) (loc : parse location) : tactic unit :=
 do unfold_coes loc, unfold (cs ++ [`var.apply,`pred'.mk]) loc
 
-meta def coes_thms : list name :=
-[`predicate.lifted₀
-,`coe,`lift_t,`lift,`has_lift_t,`coe_t,`coe,`has_coe_t
-,`coe_b,`coe,`has_coe,`coe_fn,`coe,`has_coe_to_fun
-,`coe_sort,`coe,`has_coe_to_sort,`predicate.lifted₀]
+-- meta def coes_thms : list name :=
+-- [`predicate.lifted₀
+-- ,`coe,`lift_t,`lift,`has_lift_t,`coe_t,`coe,`has_coe_t
+-- ,`coe_b,`coe,`has_coe,`coe_fn,`coe,`has_coe_to_fun
+-- ,`coe_sort,`coe,`has_coe_to_sort,`predicate.lifted₀]
 
-meta def TL_simp
-   (only_kw : parse only_flag)
-   (args : parse simp_arg_list)
-   (w : parse with_ident_list)
-   (loc : parse location) : tactic unit :=
-do std_lmm ← mmap (map (simp_arg_type.expr ∘ to_pexpr) ∘ mk_const) (coes_thms ++ [`predicate.var.apply,`predicate.pred'.mk,`temporal.init_to_fun]) ,
-   repeat (simp only_kw args w loc <|> simp only_kw std_lmm w loc <|> unfold_coes loc <|> unfold [`predicate.var.apply,`predicate.pred'.mk,`predicate.lifted₀] loc)
+-- -- meta def TL_simp
+-- --    (only_kw : parse only_flag)
+-- --    (args : parse simp_arg_list)
+-- --    (w : parse with_ident_list)
+-- --    (loc : parse location) : tactic unit :=
+-- -- do std_lmm ← mmap (map (simp_arg_type.expr ∘ to_pexpr) ∘ mk_const) (coes_thms ++ [`predicate.var.apply,`predicate.pred'.mk,`temporal.init_to_fun]) ,
+-- --    repeat (simp only_kw args w loc <|> simp only_kw std_lmm w loc <|> unfold_coes loc <|> unfold [`predicate.var.apply,`predicate.pred'.mk,`predicate.lifted₀] loc)
 
 end tactic.interactive
 
