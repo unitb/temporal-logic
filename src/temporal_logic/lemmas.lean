@@ -49,20 +49,6 @@ lemma entails_henceforth_or {p q : cpred}
 : ◻p ⋁ ◻q ⟹ ◻(p ⋁ q) :=
 sorry
 
--- lemma init_lam (p : Prop)
--- : (•p : cpred) = p :=
--- rfl
-
--- @[simp]
--- lemma init_p_or {p q : pred' β}
--- : •(p ⋁ q) = •p ⋁ •q :=
--- rfl
-
--- @[simp]
--- lemma init_p_and {p q : pred' β}
--- : •(p ⋀ q) = •p ⋀ •q :=
--- rfl
-
 /- end distributivity -/
 
 lemma eventually_of_leads_to {p q : cpred} {Γ}
@@ -111,19 +97,6 @@ begin
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
--- @[simp]
--- lemma init_not (p : pred' β) : •-p = (-•p) :=
--- begin
---   funext1,
---   TL_simp [init],
--- end
-
--- lemma not_init (p : pred' β) : (-•p) = •-p :=
--- begin
---   funext1,
---   TL_simp [init],
--- end
-
 lemma next_or (p q : cpred)
 : ⊙(p ⋁ q) = ⊙p ⋁ ⊙q :=
 rfl
@@ -134,34 +107,15 @@ rfl
 
 open nat
 
--- @[simp]
--- lemma action_drop (A : act β) (τ : stream β) (i : ℕ)
--- : τ.drop i ⊨ ⟦ A ⟧ ↔ A (τ i) (τ $ succ i) :=
--- by { unfold drop action, TL_simp [action] }
-
--- @[simp, predicate]
--- lemma models_action (A : act β) (τ : stream β)
--- : τ ⊨ ⟦ A ⟧ ↔ A (τ 0) (τ 1) :=
--- by { unfold drop action, TL_simp [action] }
-
--- @[simp]
--- lemma init_drop (p : pred' β) (τ : stream β) (i : ℕ)
--- : τ.drop i ⊨ (• p) ↔ τ i ⊨ p  :=
--- by { unfold drop action, simp [init_to_fun] }
+@[simp, predicate]
+lemma models_action (A : act β) (v : tvar β) (i : ℕ)
+: i ⊨ ⟦ v <> A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
+by { refl }
 
 @[simp, predicate]
 lemma models_next (p : cpred) (t : ℕ)
 : t ⊨ ⊙p = succ t ⊨ p :=
 by refl
-
--- @[simp]
--- lemma next_init (p : pred' β) (τ : stream β)
--- : τ ⊨ ⊙•p = τ 1 ⊨ p :=
--- by refl
-
--- lemma models_henceforth (p : cpred) (τ : stream β)
--- : τ ⊨ ◻p ↔ ∀ i, drop i τ ⊨ p :=
--- by { cases p, simp [henceforth] }
 
 lemma eventually_p_or (p q : cpred)
 : ◇(p ⋁ q) = ◇p ⋁ ◇q :=
@@ -320,7 +274,7 @@ lemma event_ordering {Γ p q : cpred}
 : Γ ⊢ ◇(p ⋀ ◇q) ⋁ ◇(◇p ⋀ q) :=
 begin [temporal]
   rw [← eventually_and_eventually],
-  split ; assumption
+  split; assumption,
 end
 
 section
@@ -347,7 +301,6 @@ do e₀ ← event_to_event e₀, e₁ ← event_to_event e₁,
 
 end
 
--- #check @p_or_entails_of_entails'
 lemma stable_and_of_stable_of_stable {p q : cpred} {Γ}
     (Hp : Γ ⊢ ◇◻p)
     (Hq : Γ ⊢ ◇◻q)
@@ -427,7 +380,7 @@ by { pointwise h with τ, auto }
 @[monotonic]
 lemma next_tl_imp_next {Γ p q : cpred} (h : tl_imp Γ p q)
 : tl_imp Γ (⊙ p) (⊙ q) :=
-by { lifted_pred keep [tl_imp], -- intros h',
+by { lifted_pred keep [tl_imp],
      replace h := h.apply (succ σ),
      apply h, clear h,
      intro i, rw [succ_add, ← add_succ],
@@ -454,34 +407,7 @@ begin
   ; exact ⟨_,_,H⟩ ,
 end
 
--- lemma forall_henceforth_one_point {t} (V : tvar t) (P : stream t → cpred)
--- : (∀∀ x : t, ◻(V ≃ x) ⟶ P (const x) : cpred) = ↑(λ (s : stream β), s ⊨ P (map V s)) :=
--- sorry
-
-
 /- Actions -/
-
--- lemma exists_action (t : Type u) (A : t → act β)
--- : (∃∃ x : t, ⟦ A x ⟧) = ⟦ λ σ σ', ∃ x, A x σ σ' ⟧ :=
--- begin
---   funext1,
---   TL_simp [temporal.action],
--- end
-
--- lemma or_action (A B : act β)
--- : ⟦ A ⟧ ⋁ ⟦ B ⟧ = ⟦ λ σ σ', A σ σ' ∨ B σ σ' ⟧ :=
--- begin
---   funext1,
---   refl
--- end
-
--- lemma action_entails_action (A B : act β)
---   (h : ∀ σ σ', A σ σ' → B σ σ')
--- : ⟦ A ⟧ ⟹ ⟦ B ⟧ :=
--- begin
---   lifted_pred,
---   apply h
--- end
 
 local infix ` <$> ` := fun_app_to_var
 local infix ` <*> ` := combine_var
@@ -502,84 +428,6 @@ begin
 end
 
 open function
-
--- @[simp]
--- lemma henceforth_trading {α} (f : α → β) (p : cpred)
--- : (◻ p) '∘ map f = ◻ (p '∘ map f) :=
--- begin
---   funext1,
---   unfold comp henceforth,
---   apply forall_congr, intro i,
---   TL_simp,
---   refl,
--- end
-
--- @[simp]
--- lemma eventually_trading {α} (f : α → β) (p : cpred)
--- : (◇ p) '∘ map f = ◇ (p '∘ map f) :=
--- begin
---   funext1,
---   unfold comp eventually,
---   apply exists_congr, intro i,
---   TL_simp, refl,
--- end
-
--- @[simp]
--- lemma init_trading {α} (f : α → β) (p : pred' β)
--- : (• p) ;; ↑(map f) = • (p '∘ f) :=
--- begin
---   funext1,
---   TL_simp [comp,init],
---   refl
--- end
-
--- @[simp]
--- lemma action_trading {α} (f : α → β) (a : act β)
--- : (action a ;; ↑(map f)) = ( action $ a on f ) :=
--- begin
---   funext1,
---   refl,
--- end
-
--- @[simp]
--- lemma comp_map_app_eq_map {α} (p : cpred) (f : α → β) (τ : stream α)
--- : map f τ ⊨ p ↔ τ ⊨ p '∘ map f :=
--- by cases p; refl
-
--- lemma inf_often_trace_trading {α} (τ : stream α) (f : α → β) (p : cpred)
--- : τ ⊨ ◻◇(p '∘ map f) = map f τ ⊨ ◻◇p :=
--- by { TL_simp [eventually_trading,henceforth_trading], }
-
--- lemma inf_often_trace_init_trading {α} (τ : stream α) (f : α → β) (p : pred' β)
--- : τ ⊨ ◻◇•(p '∘ f) = map f τ ⊨ ◻◇•p :=
--- by { TL_simp [init_trading,eventually_trading,henceforth_trading], }
-
--- lemma inf_often_trace_action_trading {α} (τ : stream α) (f : α → β) (p : act β)
--- : τ ⊨ ◻◇⟦ p on f ⟧ = map f τ ⊨ ◻◇⟦ p ⟧ :=
--- by { simp }
-
--- lemma stable_trace_trading {α} (τ : stream α) (f : α → β) (p : cpred)
--- : τ ⊨ ◇◻(p '∘ map f) = map f τ ⊨ ◇◻p :=
--- by { simp }
-
--- lemma stable_trace_init_trading {α} (τ : stream α) (f : α → β) (p : pred' β)
--- : τ ⊨ ◇◻•(p '∘ f) = map f τ ⊨ ◇◻•p :=
--- by { simp }
-
--- lemma stable_trace_init_trading (τ : stream α) (f : α → β) (p : β → Prop)
--- : (◇◻•(p ∘ f)) τ = (◇◻•p) (f ∘ τ) :=
--- by rw [init_trading,henceforth_trading,eventually_trading]
-
--- lemma inf_often_trace_action_init_trading {α} (τ : stream α) (f : α → α → β) (p : pred' β)
--- : τ ⊨ ◻◇⟦ λ σ σ', f σ σ' ⊨ p ⟧ = (λ i, f (τ i) (τ $ succ i)) ⊨ ◻◇•p :=
--- begin
---   unfold henceforth eventually,
---   rw ← iff_eq_eq,
---   apply forall_congr, intro i,
---   apply exists_congr, intro j,
---   simp [drop_drop,init,action,drop],
---   refl,
--- end
 
 protected theorem leads_to_of_inf_often (Γ p q : cpred)
   (H : Γ ⊢ ◻◇q)
@@ -699,12 +547,7 @@ begin [temporal]
     have S₁ : ∀∀ (v : β'), (V ≃ v)  ~> ◻(V ≃ v) ⋁ ◻◇(V ≺≺ v ⋁ q),
     { admit }, clear S₀,
     have H₁ : (p ⋀ V ≃ v) ~> (V ≺≺ v ⋀ p) ⋁ q, admit,
---    have H₂ : (•(flip lt v ∘ V ⋀ p) ~> •q) τ , admit,
     have H₃ := temporal.leads_to_cancellation H₁ IH',
---     have H₀ := @temporal.leads_to_trans _ ((p ⋀ eq v ∘ V)) _ _ _ H₁ IH',
---     clear S₀,
---     have H₃ : (•(p ⋀ eq v ∘ V) ~> •q ⋁ ◻•-p) τ, admit,
--- --    apply temporal.leads_to_cancellation _ _, },
     admit },
   have H := @temporal.leads_to_disj _ (λ v : β', (p ⋀ V ≃ v)) (q ⋁ ◻-p) _ Hex,
   dsimp [tl_leads_to] at H,
@@ -731,7 +574,6 @@ def p' := ⊙p
 def q' := ⊙q
 parameters [has_well_founded β']
 parameters (h₀ : Γ ⊢ ◻◇p)
--- parameters (h₁ : Γ ⊢ ◻⟦ λ s s', q s' ∨ f s' << f s ∨ (¬ p s' ∧ f s = f s') ⟧)
 parameters (h₁ : Γ ⊢ ◻(q' ⋁ V' ≺≺ V ⋁ (- p' ⋀ V' ≃ V)))
 
 def EQ (v : β') : cpred := V ≃ v
@@ -749,8 +591,6 @@ begin [temporal]
   intros Hp Hv,
   replace h₀ := p_impl_revert (henceforth_next (◇p) Γ) h₀,
   rw next_eventually_comm at h₀,
-  -- replace h₀ := coincidence' h₁ h₀,
-  -- henceforth at h₀,
   have h₀ : ◇(ACT V p q ⋀ ⊙p ⋀ (EQ V v)),
   { suffices : ◇(ACT V p q ⋀ ⊙p ⋀ EQ V v) ⋁ ◻EQ V v,
     { cases this, assumption,
@@ -783,38 +623,105 @@ begin [temporal]
 end
 end inf_often_induction
 
--- lemma congr_inf_often_trace {α} {x : α} {τ : stream α} (f : α → β)
---   (Hinj : injective f)
--- : (◻◇(eq x : pred' α)) τ ↔ (◻◇(eq (f x) : pred' β)) (map f τ) :=
--- begin
---   let EQ_f := (eq (f x) : pred' β),
---   rw [ comp_map_app_eq_map (◻◇EQ_f) f τ ],
---   rw [ (henceforth_trading f (◇EQ_f)).symm ],
---   rw [ (eventually_trading f (EQ_f)).symm  ],
---   rw [ (init_trading f (eq (f x))).symm ],
---   have H : EQ_f '∘ f = eq x,
---   { funext y,
---     simp,
---     split,
---     { apply Hinj },
---     apply congr_arg },
---   rw H,
--- end
-
--- lemma events_to_states {lbl : Type u} (s : stream lbl)
---   (act : lbl → β → β → Prop) {τ : stream β}
---   (h : ∀ i, act (s i) (τ i) (τ (succ i)))
---   (e : lbl)
--- : (◻◇(eq e : pred' lbl)) s → (◻◇⟦act e⟧) τ :=
--- begin
---   intros h' i,
---   cases h' i with j h',
---   TL_simp [drop_drop, init_drop] at h',
---   TL_simp [eventually], existsi j,
---   simp [drop_drop,action,action_drop,h',drop],
---   apply h,
--- end
-
 attribute [irreducible] next
+section
+variables Γ : cpred
+variables p q : tvar α
+variables r : tvar β
+variable f : α → β
+@[lifted_congr]
+lemma lifted_congr₁
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ lifted₁ f p ≃ lifted₁ f q :=
+sorry
 
+@[lifted_congr]
+lemma lifted_congr₂_a (g : α → β → γ)
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ lifted₂ g p r ≃ lifted₂ g q r :=
+sorry
+
+@[lifted_congr]
+lemma lifted_congr₂_b (g : β → α → γ)
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ lifted₂ g r p ≃ lifted₂ g r q :=
+sorry
+
+@[lifted_congr]
+lemma lifted_proj (v : var α β)
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ v ;; p ≃ v ;; q :=
+sorry
+
+@[timeless_congr]
+lemma lifted_henceforth (p q : cpred)
+  (h : ◻Γ ⊢ p ≃ q)
+: ◻Γ ⊢ ◻p ≃ ◻q :=
+sorry
+
+@[timeless_congr]
+lemma lifted_eventually (p q : cpred)
+  (h : ◻Γ ⊢ p ≃ q)
+: ◻Γ ⊢ ◇p ≃ ◇q :=
+sorry
+
+end
+
+section witness_construction
+
+parameters {α' : Sort u}
+parameters {p J : pred' α'}
+parameters {A : act α'}
+
+parameters H₀ : p ⟹ J
+parameters FIS₀ : ∃ σ, σ ⊨ p
+parameters FIS : ∀ σ, σ ⊨ J → ∃ σ', A σ σ'
+parameters INV : ∀ σ σ', σ ⊨ J → A σ σ' → σ' ⊨ J
+
+open classical
+
+include H₀ INV
+noncomputable def w : ℕ → { σ // σ ⊨ J }
+  | 0 :=
+let x₀ := some FIS₀ in
+have H₀ : x₀ ⊨ J,
+  begin
+    apply ew_str H₀,
+    apply some_spec
+  end,
+⟨x₀,H₀⟩
+  | (succ j) :=
+let ⟨x,H⟩ := w j,
+    x' := some (FIS x H) in
+have H' : x' ⊨ J,
+  begin
+    apply INV, apply H,
+    apply some_spec
+  end,
+⟨x',H'⟩
+
+noncomputable def w' (i j : ℕ) : α' :=
+(w (j-i)).val
+
+include FIS₀ FIS
+lemma witness_construction
+: ⊩ ∃∃ v, p ;; v ⋀ ◻⟦ v <> A ⟧ :=
+begin
+  lifted_pred,
+  apply exists_imp_exists' var.mk ,
+  introv h, apply h,
+  simp,
+  existsi (w' H₀ FIS₀ FIS INV x),
+  split,
+  { simp [w',nat.sub_self,w],
+    apply classical.some_spec },
+  { simp_intros [henceforth,action,w',nat.add_sub_cancel_left],
+    rw [← add_succ,nat.add_sub_cancel_left],
+    simp [w],
+    cases h : w H₀ FIS₀ FIS INV j,
+    simp [w._match_1],
+    apply classical.some_spec, }
+end
+
+end witness_construction
 end temporal
