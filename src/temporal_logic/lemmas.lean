@@ -108,10 +108,20 @@ rfl
 
 open nat
 
+@[simp]
+lemma const_action (c : Prop) (v : tvar α)
+: ⟦ v <> λ _ _ : α, c ⟧ = (c : cpred) :=
+by { refl }
+
 @[simp, predicate]
-lemma models_action (A : act β) (v : tvar β) (i : ℕ)
+lemma models_action (A : act α) (v : tvar α) (i : ℕ)
 : i ⊨ ⟦ v <> A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
 by { refl }
+
+@[predicate]
+lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
+: ⟦ v <> A on f ⟧ = ⟦ ↑f ;; v <> A ⟧ :=
+by { lifted_pred }
 
 @[simp, predicate]
 lemma models_next (p : cpred) (t : ℕ)
@@ -630,101 +640,56 @@ variables Γ : cpred
 variables p q : tvar α
 variables r : tvar β
 variable f : α → β
+
 @[lifted_congr]
 lemma lifted_congr₁
   (h : Γ ⊢ p ≃ q)
 : Γ ⊢ lifted₁ f p ≃ lifted₁ f q :=
-sorry
+by { lifted_pred using h, simp [h] }
 
 @[lifted_congr]
 lemma lifted_congr₂_a (g : α → β → γ)
   (h : Γ ⊢ p ≃ q)
 : Γ ⊢ lifted₂ g p r ≃ lifted₂ g q r :=
-sorry
+by { lifted_pred using h, simp [h] }
 
 @[lifted_congr]
 lemma lifted_congr₂_b (g : β → α → γ)
   (h : Γ ⊢ p ≃ q)
 : Γ ⊢ lifted₂ g r p ≃ lifted₂ g r q :=
-sorry
+by { lifted_pred using h, simp [h] }
 
 @[lifted_congr]
 lemma lifted_proj (v : var α β)
   (h : Γ ⊢ p ≃ q)
 : Γ ⊢ v ;; p ≃ v ;; q :=
-sorry
+by { lifted_pred using h, simp [h] }
 
 @[timeless_congr]
 lemma lifted_henceforth (p q : cpred)
   (h : ◻Γ ⊢ p ≃ q)
 : ◻Γ ⊢ ◻p ≃ ◻q :=
-sorry
+begin
+  apply mutual_p_imp
+  ; change tl_imp _ _ _
+  ; monotonicity
+  ; apply p_imp_of_equiv,
+  apply h, apply v_eq_symm h
+end
 
 @[timeless_congr]
 lemma lifted_eventually (p q : cpred)
   (h : ◻Γ ⊢ p ≃ q)
 : ◻Γ ⊢ ◇p ≃ ◇q :=
-sorry
-
-end
-
-section witness_construction
-
-parameters {α' : Sort u}
-parameters {p J : pred' α'}
-parameters {A : act α'}
-
-parameters H₀ : p ⟹ J
-parameters FIS₀ : ∃ σ, σ ⊨ p
-parameters FIS : ∀ σ, σ ⊨ J → ∃ σ', A σ σ'
-parameters INV : ∀ σ σ', σ ⊨ J → A σ σ' → σ' ⊨ J
-
-open classical
-
-include H₀ INV
-private noncomputable def w : ℕ → { σ // σ ⊨ J }
-  | 0 :=
-let x₀ := some FIS₀ in
-have H₀ : x₀ ⊨ J,
-  begin
-    apply ew_str H₀,
-    apply some_spec
-  end,
-⟨x₀,H₀⟩
-  | (succ j) :=
-let ⟨x,H⟩ := w j,
-    x' := some (FIS x H) in
-have H' : x' ⊨ J,
-  begin
-    apply INV, apply H,
-    apply some_spec
-  end,
-⟨x',H'⟩
-
-noncomputable def w' (i j : ℕ) : α' :=
-(w (j-i)).val
-
-include FIS₀ FIS
-lemma witness_construction
-: ⊩ ∃∃ v, p ;; v ⋀ ◻⟦ v <> A ⟧ :=
 begin
-  lifted_pred,
-  apply exists_imp_exists' var.mk ,
-  introv h, apply h,
-  simp,
-  existsi (w' H₀ FIS₀ FIS INV x),
-  split,
-  { simp [w',nat.sub_self],
-    apply classical.some_spec },
-  { simp_intros [henceforth,action,w',nat.add_sub_cancel_left],
-    rw [← add_succ,nat.add_sub_cancel_left],
-    simp [w],
-    cases h : w H₀ FIS₀ FIS INV j,
-    simp [w._match_1],
-    apply classical.some_spec, }
+  apply mutual_p_imp
+  ; change tl_imp _ _ _
+  ; monotonicity
+  ; apply p_imp_of_equiv,
+  apply h, apply v_eq_symm h
 end
 
-end witness_construction
+end
 
 section simulation
 
@@ -742,6 +707,20 @@ notation `⦃` x `,` l:(foldl `,` (h t, pair h t) x `⦄`)  := l
 lemma pair_model (i : ℕ) :
 i ⊨ ⦃x,y⦄ = (i ⊨ y,i ⊨ x) :=
 by { cases x, cases y, refl }
+
+@[reducible]
+def pair.fst : var (α' × β') α' :=
+↑(@prod.fst α' β')
+
+@[simp]
+def pair.fst_mk (x : tvar α') (y : tvar β')
+: pair.fst ;; ⦃y,x⦄ = x :=
+by lifted_pred
+
+-- @[simp]
+def pair.fst_mk' (x : tvar α') (y : tvar β')
+: ↑(@prod.fst α' β') ;; ⦃y,x⦄ = x :=
+pair.fst_mk _ _
 
 end pair
 
@@ -840,9 +819,10 @@ begin
     { apply lt_succ_of_le, apply nat.le_add_right },
     simp [w], rw [ww',ww], simp [dif_pos h'],
     rw ← h,
-    apply_some_spec, intros, assumption, },
-  { dsimp [w,ww'], rw ww, simp, apply_some_spec,
-    intros, assumption, },
+    apply_some_spec, simp, intros, assumption, },
+  { dsimp [w,ww'], rw ww, simp,
+    apply_some_spec,
+    simp, intros, assumption, },
 end
 omit H
 lemma simulation'
@@ -854,5 +834,63 @@ begin [temporal]
 end
 
 end simulation
+
+section witness_construction
+
+parameters {α' : Sort u}
+parameters {p J : pred' α'}
+parameters {A : act α'}
+
+parameters H₀ : p ⟹ J
+parameters FIS₀ : ∃ σ, σ ⊨ p
+parameters FIS : ∀ σ, σ ⊨ J → ∃ σ', A σ σ'
+parameters INV : ∀ σ σ', σ ⊨ J → A σ σ' → σ' ⊨ J
+
+open classical
+
+include H₀ INV
+
+def A' : plift α' × unit → plift α' × unit → Prop :=
+A on (plift.down ∘ prod.fst)
+
+parameters [_inst : inhabited α']
+
+include FIS₀ FIS _inst
+lemma witness_construction
+: ⊩ ∃∃ v, p ;; v ⋀ ◻⟦ v <> A ⟧ :=
+begin
+  intro,
+  let o : tvar unit := ↑(),
+  let C : unit × unit → unit × unit → Prop := λ _ _, true,
+  let prj : var (plift α' × unit) α' := ↑(@plift.down α') ;; pair.fst,
+  let p' : pred' (plift α' × unit) := p ;; prj,
+  have _inst : inhabited (plift α') := ⟨ plift.up (default α') ⟩,
+  let J' : pred' (plift α' × unit × unit) := J ;; ↑(@plift.down α') ;; pair.fst,
+  have := @simulation _ _ _ p' (@True $ unit × unit) (A' H₀ INV) C J' _ _ _ o o Γ _,
+  begin [temporal]
+    revert this,
+    let f : tvar (plift α') → tvar α' := λ v, ↑(λ x : plift α', x.down) ;; v,
+    let SPEC := @SPEC₀ _ _ p' (A' H₀ INV),
+    let SPEC' := λ (v : tvar α'), p ;; v ⋀ ◻⟦ v <> A ⟧,
+    apply p_exists_imp_p_exists' (λ w, SPEC w o) SPEC' f,
+    intro, simp only [SPEC,f,SPEC',SPEC₀,p',prj,proj_assoc,pair.fst_mk,A'],
+    monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.fst_mk'],
+    refl,
+  end,
+  { intros,
+    revert FIS₀,
+    apply exists_imp_exists' plift.up,
+    introv h, split, simp [p',h],
+    simp [J'], apply ew_str H₀ _ h, },
+  { introv hJ hC, simp [J'] at hJ,
+    have := FIS (w.down) hJ, revert this,
+    apply exists_imp_exists' plift.up,
+    introv hA, simp [A'], split,
+    { apply INV _ _ hJ hA  },
+    { apply hA } },
+  { simp [SPEC₁,C], }
+end
+
+end witness_construction
 
 end temporal
