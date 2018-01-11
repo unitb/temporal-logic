@@ -118,7 +118,7 @@ lemma models_action (A : act α) (v : tvar α) (i : ℕ)
 : i ⊨ ⟦ v <> A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
 by { refl }
 
-@[predicate]
+-- @[predicate]
 lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
 : ⟦ v <> A on f ⟧ = ⟦ ↑f ;; v <> A ⟧ :=
 by { lifted_pred }
