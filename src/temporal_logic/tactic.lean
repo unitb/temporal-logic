@@ -186,6 +186,8 @@ do intros,
           <|> refine ``(@id (_ ⊨ _) _) >> sem_to_syntactic
           <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
+   target >>= whnf >>= change,
+   -- to_expr ``(_ ⊢ _) >>= change,
    c
 
 meta def revert (e : expr) : tactic unit :=
@@ -230,7 +232,7 @@ do `(_ ⊢ %%p) ← infer_type e,
    return p
 
 lemma to_antecendent (xs : list (cpred))
-  [list_persistent xs]
+  (H : list_persistent xs)
   (p : cpred)
   (h : ◻ xs.foldr (⋀) True ⊢ p)
 : ∀ Γ, with_h_asms Γ xs p :=
@@ -241,10 +243,10 @@ begin
   { simp at h, simp [with_h_asms,h], },
   { simp at h, simp_intros [with_h_asms],
     have _inst_2 : persistent x,
-    { apply _inst_1, simp, },
-    replace _inst_1 : Π (q : cpred), q ∈ xs → persistent q,
-    { intros, apply _inst_1, right, xassumption, },
-    apply @ih_1 _inst_1, intros,
+    { apply H, simp, },
+    replace H : Π (q : cpred), q ∈ xs → persistent q,
+    { intros, apply H, right, xassumption, },
+    apply @ih_1 H, intros,
     apply h,
     rw henceforth_and,
     simp [is_persistent],
@@ -602,7 +604,8 @@ meta def update_name (f : string → string) : name → name
 
 meta def existsi (e : expr) : temporal unit :=
 do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
-   `(cpred) ← infer_type Γ,
+   infer_type Γ >>= trace,
+   infer_type Γ >>= match_expr ``(cpred),
    t' ← infer_type e,
    let v := if e.is_constant
             then update_name (λ s, s ++ "₀") e.const_name
@@ -708,12 +711,14 @@ meta def refine (e : parse texpr) : temporal unit :=
 tactic.interactive.refine e
 
 meta def apply (q : parse texpr) : temporal unit :=
+focus1 $
 do l ← i_to_expr_for_apply q,
    tactic.apply l <|> strengthening (tactic.apply l)
-                  <|> tactic.apply l -- we try `tactic.apply l` again
-                                     -- knowing that if we go back to
-                                     -- it, it will fail and we'll have
-                                     -- a proper error message
+                  <|> tactic.apply l, -- we try `tactic.apply l` again
+                                      -- knowing that if we go back to
+                                      -- it, it will fail and we'll have
+                                      -- a proper error message
+   all_goals (try $ execute (pure ()))
 
 meta def trivial : temporal unit :=
 `[apply of_eq_true (True_eq_true _)]
@@ -963,7 +968,7 @@ do gs ← get_goals,
 
 meta def replace (n : parse ident)
 : parse (parser.tk ":" *> texpr)? → parse (parser.tk ":=" *> texpr)? → temporal unit
-| none prf := tactic.interactive.replace n none prf
+| none prf := tactic.interactive.replace n none prf >> try (simp tt [] [] (loc.ns [some n]))
 | (some t) (some prf) :=
 do t' ← to_expr t >>= infer_type,
    tl ← tt <$ match_expr ``(pred' _) t' <|> pure ff,
@@ -984,6 +989,7 @@ meta def transitivity : parse texpr? → temporal unit
 end interactive
 
 /- end monotonicity -/
+
 
 section
 open tactic tactic.interactive (unfold_coes unfold itactic assert_or_rule)
@@ -1013,27 +1019,33 @@ do when l.include_goal $
          (pure ())
   end
 
-meta def monotonicity1 : temporal unit :=
-do asms ← get_assumptions,
-   ex ← list.band <$> asms.mmap is_henceforth,
+meta def monotonicity1 (only_pers : parse only_flag) : temporal unit :=
+do ex ← (if ¬ only_pers then do
+      asms ← get_assumptions,
+      list.band <$> asms.mmap is_henceforth
+   else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
           to_expr ``(tl_imp _ _ _) >>= change,
           tactic.interactive.monotonicity1
    else tactic.interactive.monotonicity1
 
-meta def monotonicity_n (n : ℕ) : temporal unit :=
-do asms ← get_assumptions,
-   ex ← list.band <$> asms.mmap is_henceforth,
+meta def monotonicity_n (n : ℕ) (only_pers : parse only_flag) : temporal unit  :=
+do ex ← (if ¬ only_pers then do
+      asms ← get_assumptions,
+      list.band <$> asms.mmap is_henceforth
+   else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
           to_expr ``(tl_imp _ _ _) >>= change,
           tactic.repeat_exactly n tactic.interactive.monotonicity1
    else tactic.interactive.monotonicity1
 
-meta def monotonicity (e : parse assert_or_rule?) : temporal unit :=
-do asms ← get_assumptions,
-   ex ← list.band <$> asms.mmap is_henceforth,
+meta def monotonicity (only_pers : parse only_flag) (e : parse assert_or_rule?) : temporal unit :=
+do ex ← (if ¬ only_pers then do
+      asms ← get_assumptions,
+      list.band <$> asms.mmap is_henceforth
+   else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
           to_expr ``(tl_imp _ _ _) >>= change,
@@ -1054,14 +1066,15 @@ do get_local e >>= temporal.revert,
 private meta def goal_flag := tt <$ tk "⊢" <|> tt <$ tk "|-" <|> pure ff
 
 meta def interactive.eventually (h : parse ident) (goal : parse goal_flag) : temporal unit :=
-do `(%%Γ ⊢ ◇%%p) ← target <|> fail format!"expecting a goal of the form `◇ _`",
+do `(%%Γ ⊢ %%p) ← target,
    h' ← get_local h,
-   `(%%Γ' ⊢ %%q) ← infer_type h' <|> fail format!"{h} should be a temporal formula",
+   `(%%Γ' ⊢ ◇%%q) ← infer_type h' | fail format!"{h} should be a temporal formula of the form ◇_",
    is_def_eq Γ Γ',
-   when (¬ goal) $
-     to_expr ``((eventually_eventually %%p).symm) >>= tactic.rewrite_target,
    revert h',
-   monotonicity1,
+   if goal then do
+     `(◇ %%p) ← pure p | fail format!"expecting a goal of the form `◇ _`",
+     monotonicity1 ff
+   else persistently (refine ``(p_imp_postpone _ %%q %%p _)),
    () <$ intro (some h)
 
 meta def timeless (h : expr) : temporal (option name) :=

@@ -343,6 +343,18 @@ begin
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
+lemma eventually_exists (P : α → cpred)
+: ◇(∃∃ x, P x) = ∃∃ x, ◇P x :=
+begin
+  funext1,
+  unfold eventually p_exists,
+  split
+  ; intro H
+  ; cases H with i H
+  ; cases H with j H
+  ; exact ⟨_,_,H⟩ ,
+end
+
 lemma one_point_elim {t} (Γ p : cpred) (v : tvar t)
   (h : ∀ x : t, Γ ⊢ (↑x ≃ v) ⟶ p)
 : Γ ⊢ p :=
