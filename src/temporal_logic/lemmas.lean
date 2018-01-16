@@ -123,6 +123,11 @@ lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
 : ⟦ v <> A on f ⟧ = ⟦ ↑f ;; v <> A ⟧ :=
 by { lifted_pred }
 
+@[predicate]
+lemma exists_action  (A : γ → act α) (v : tvar α)
+: (∃∃ i, ⟦ v <> A i ⟧) = ⟦ v <> λ s s', (∃ i, A i s s') ⟧ :=
+by { lifted_pred }
+
 @[simp, predicate]
 lemma models_next (p : cpred) (t : ℕ)
 : t ⊨ ⊙p = succ t ⊨ p :=

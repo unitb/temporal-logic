@@ -132,7 +132,11 @@ local infix ` <$> ` := fun_app_to_var
 local infix ` <*> ` := combine_var
 
 lemma init_eq_action {p : α → Prop} (v : tvar α)
-: (p <$> v) = ⟦ v <> λ s s', p s ⟧ :=
+: (↑p ;; v) = ⟦ v <> λ s s', p s ⟧ :=
+by { cases v, refl }
+
+lemma coe_eq (v : tvar α) (x : α)
+: (↑(λ y, y = x) ;; v) = v ≃ x :=
 by { cases v, refl }
 
 lemma init_eq_action' {p : pred' α} (v : tvar α)

@@ -25,11 +25,12 @@ instance persistent_sched : persistent (sched p q A) :=
 by { unfold sched, apply_instance }
 
 end defs
-
+-- TODO(Simon) replace ~> with ◻◇_ ⟶ ◻◇_
 section one_to_one
 
-variables Γ p q A : cpred
-variables p' q' A' : cpred
+variables {p q A : cpred}
+variables {p' q' A' : cpred}
+variables Γ : cpred
 
 variables H₀ : Γ ⊢ p' ⋀ q' ~> p
 variables H₁ : Γ ⊢ ◻◇p ⟶ ◇◻p ⋁ ◻◇-p'
@@ -61,7 +62,7 @@ variables w p q A : t → cpred
 variables Γ p' q' A' : cpred
 
 -- TODO(Simon) Weaken proof obligation `H₀`. We can do with ◻◇_ ⟶ ◻◇ _
--- instead of _ ~> _
+-- instead of _ ~> _. Use w i unless -p'
 
 -- variables H₀ : Γ ⊢ ∀∀ i, ◻◇(p' ⋀ q' ⋀ w i) ⟶ ◻◇p i ⋀ q i ⋀ w i
 variables H₀ : Γ ⊢ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i

@@ -2,6 +2,9 @@
 import util.predicate
 import util.control.applicative
 import util.meta.tactic
+import meta.expr
+
+import tactic
 
 import temporal_logic.basic
 import temporal_logic.persistent
@@ -56,6 +59,42 @@ open interactive
 open tactic.interactive (rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr')
 open has_to_tactic_format
 open has_map list (filter)
+section expr
+open expr
+variable {elab : bool}
+meta def get_app_args_aux' : list (expr elab) → expr elab → list (expr elab)
+| r (app f a) := get_app_args_aux' (a::r) f
+| r e         := r
+
+meta def get_app_args' : (expr elab) → list (expr elab) :=
+get_app_args_aux' []
+
+end expr
+
+meta def t_to_expr : pexpr → temporal expr
+| e@(expr.app e₀ e₁) :=
+   to_expr e <|>
+do e' ← t_to_expr e₀,
+   t ← infer_type e',
+   -- trace t,
+   match_expr ``(_ ⊢ _ ⟶ _) t >> to_expr ``(p_impl_revert %%e' %%e₁) <|>
+        match_expr ``(_ ⊢ ◻(_ ⟶ _)) t >> to_expr ``(henceforth_deduction %%e' %%e₁) <|>
+        match_expr ``(_ ⊢ ∀∀ _, _) t >> to_expr ``(p_forall_revert %%e %%e₁) <|>
+        to_expr ``(%%e %%e₁)
+| e := to_expr e
+
+meta def t_to_expr_for_apply (q : pexpr) : temporal expr :=
+let aux (n : name) : tactic expr := do
+  p ← resolve_name n,
+  match p with
+  | (expr.const c []) := do r ← mk_const c, save_type_info r q, return r
+  | _                 := t_to_expr p
+  end
+in match q with
+| (expr.const c [])          := aux c
+| (expr.local_const c _ _ _) := aux c
+| _                          := t_to_expr q
+end
 
 meta def beta_reduction' : expr → temporal expr
  | (expr.app e₀ e₁) :=
@@ -187,7 +226,6 @@ do intros,
           <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
    target >>= whnf >>= change,
-   -- to_expr ``(_ ⊢ _) >>= change,
    c
 
 meta def revert (e : expr) : tactic unit :=
@@ -213,7 +251,7 @@ do lmms ← attribute.get_instances `strengthening,
      tac
 
 meta def interactive.apply' (q : parse texpr) : temporal unit :=
-do l ← i_to_expr_for_apply q,
+do l ← t_to_expr_for_apply q, tactic.trace l,
    tactic.apply l <|> interactive.strengthening (tactic.apply l)
                   <|> tactic.apply l  -- we try `tactic.apply l` again
                                       -- knowing that if we go back to
@@ -257,12 +295,12 @@ begin
     end }
 end
 
-section persistently
 open tactic tactic.interactive (unfold_coes unfold itactic assert_or_rule)
 open interactive interactive.types lean lean.parser
 open applicative (mmap₂ lift₂)
 open has_map
 local postfix `?`:9001 := optional
+section persistently
 
 meta def is_henceforth (e : expr) : temporal bool :=
 do `(_ ⊢ %%t) ← infer_type e | return tt,
@@ -602,22 +640,27 @@ meta def update_name (f : string → string) : name → name
  | (name.mk_string s p) := name.mk_string (f s) p
  | x := x
 
-meta def existsi (e : expr) : temporal unit :=
+meta def strip_prefix : name → name
+ | (name.mk_string s p) := name.mk_string s name.anonymous
+ | (name.mk_numeral s p) := name.mk_numeral s name.anonymous
+ | name.anonymous := name.anonymous
+
+meta def existsi (e : expr) (id : name) : temporal unit :=
 do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
-   infer_type Γ >>= trace,
    infer_type Γ >>= match_expr ``(cpred),
-   t' ← infer_type e,
-   let v := if e.is_constant
-            then update_name (λ s, s ++ "₀") e.const_name
-            else if e.is_local_constant
-            then update_name (λ s, s ++ "₀") e.local_pp_name
+   let r := e.get_app_fn,
+   let v := if r.is_constant
+            then update_name (λ s, s ++ "₀") (strip_prefix r.const_name)
+            else if r.is_local_constant
+            then update_name (λ s, s ++ "₀") r.local_pp_name
             else `v₀,
-   w ← (match_expr ``(tvar %%t) t' >> bind_name e v `h <|> return e),
+   t' ← infer_type e,
+   w ← (match_expr ``(tvar %%t) t' >> (bind_name e v id) <|> return e),
    refine ``(p_exists_to_fun %%w _)
 
 namespace interactive
 open lean.parser interactive interactive.types lean
-open expr
+open expr tactic.interactive (rcases_parse rcases_parse.invert)
 local postfix `?`:9001 := optional
 local postfix *:9001 := many
 
@@ -670,10 +713,10 @@ match q₁, q₂ with
   `(%%Γ ⊢ _) ← target,
   t ← i_to_expr e,
   t' ← to_expr ``(%%Γ ⊢ %%t),
-  v ← i_to_expr ``(%%p : %%t'),
+  v ← t_to_expr ``(%%p : %%t'),
   tactic.assertv h t' v
 | none, some p := do
-  p ← i_to_expr p,
+  p ← t_to_expr p,
   temporal.note h none p
 | some e, none := do
   `(%%Γ ⊢ _) ← target,
@@ -712,7 +755,7 @@ tactic.interactive.refine e
 
 meta def apply (q : parse texpr) : temporal unit :=
 focus1 $
-do l ← i_to_expr_for_apply q,
+do l ← t_to_expr_for_apply q,
    tactic.apply l <|> strengthening (tactic.apply l)
                   <|> tactic.apply l, -- we try `tactic.apply l` again
                                       -- knowing that if we go back to
@@ -777,6 +820,12 @@ do p' ← to_expr e.2,
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
 
+-- meta def rcases (e : parse cases_arg_p)
+--   (ids : parse (tk "with" *> rcases_parse)?)
+-- : temporal unit :=
+-- do let patts := rcases_parse.invert $ ids.get_or_else [default _],
+--    _
+
 meta def by_cases (q : parse texpr) (n : parse (tk "with" *> ident)?): tactic unit :=
 let h := n.get_or_else `h in
 cases (none, ``(predicate.em %%q)) [h,h]
@@ -828,9 +877,13 @@ meta def split : temporal unit :=
 do `(%%Γ ⊢ %%p ⋀ %%q) ← target,
    apply ``(p_and_intro %%p %%q %%Γ _ _)
 
-meta def existsi : parse pexpr_list_or_texpr → temporal unit
-| []      := return ()
-| (p::ps) := i_to_expr p >>= temporal.existsi >> existsi ps
+meta def existsi : parse pexpr_list_or_texpr → parse with_ident_list → temporal unit
+| []      _ := return ()
+| (p::ps) xs :=
+do e ← i_to_expr p,
+   have h : inhabited name, from ⟨ `_ ⟩,
+   temporal.existsi e (@list.head _ h xs),
+   existsi ps xs.tail
 
 meta def clear_except :=
 tactic.interactive.clear_except
@@ -974,7 +1027,8 @@ do t' ← to_expr t >>= infer_type,
    tl ← tt <$ match_expr ``(pred' _) t' <|> pure ff,
    if tl then do
      `(%%Γ ⊢ _) ← target,
-     tactic.interactive.replace n ``(%%Γ ⊢ %%t) prf
+     prf' ← t_to_expr prf,
+     tactic.interactive.replace n ``(%%Γ ⊢ %%t) (to_pexpr prf')
    else tactic.interactive.replace n t prf
 | (some t) none :=
 do t' ← to_expr t >>= infer_type,
