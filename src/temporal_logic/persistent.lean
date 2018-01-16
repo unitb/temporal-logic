@@ -140,9 +140,14 @@ lemma persistent_to_henceforth {p q : cpred}
 : ◻ p ⊢ ◻ q :=
 sorry
 
+lemma henceforth_deduction {Γ p q : cpred}
+  (h : Γ ⊢ ◻(p ⟶ q))
+: Γ ⊢ p → Γ ⊢ q :=
+henceforth_str (p ⟶ q) Γ h
+
 instance has_coe_to_fun_henceforth (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ ◻(p ⟶ q)) :=
 { F := λ _, Γ ⊢ p → Γ ⊢ q
-, coe := assume h, henceforth_str (p ⟶ q) Γ h  }
+, coe :=  henceforth_deduction }
 
 instance has_coe_to_fun_leads_to (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ p ~> q) :=
 temporal.has_coe_to_fun_henceforth _ _ _
