@@ -31,14 +31,14 @@ end
 
 variables h₂ : Γ ⊢ ◻(v₀ ≃ v₁)
 include h₂
-example (h : Γ ⊢ ◇(◻(f ;; v₀ ≡ q) ⋀ p))
-: Γ ⊢ ◇(◻(f ;; v₁ ≡ q) ⋀ p) :=
+example (h : Γ ⊢ ◇(◻(f ! v₀ ≡ q) ⋀ p))
+: Γ ⊢ ◇(◻(f ! v₁ ≡ q) ⋀ p) :=
 begin [temporal]
   rw ← h₂,
 end
 
-example (h : Γ ⊢ ◇(◻(f ;; v₀ ≡ q) ⋀ p))
-: Γ ⊢ ◇(◻(f ;; v₁ ≡ q) ⋀ p) :=
+example (h : Γ ⊢ ◇(◻(f ! v₀ ≡ q) ⋀ p))
+: Γ ⊢ ◇(◻(f ! v₁ ≡ q) ⋀ p) :=
 begin [temporal]
   rw h₂ at h,
 end
