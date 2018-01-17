@@ -110,22 +110,22 @@ open nat
 
 @[simp]
 lemma const_action (c : Prop) (v : tvar α)
-: ⟦ v : λ _ _ : α, c ⟧ = (c : cpred) :=
+: ⟦ v | λ _ _ : α, c ⟧ = (c : cpred) :=
 by { refl }
 
 @[simp, predicate]
 lemma models_action (A : act α) (v : tvar α) (i : ℕ)
-: i ⊨ ⟦ v : A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
+: i ⊨ ⟦ v | A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
 by { refl }
 
 -- @[predicate]
 lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
-: ⟦ v : A on f ⟧ = ⟦ ⟨f⟩ ! v : A ⟧ :=
+: ⟦ v | A on f ⟧ = ⟦ ⟨f⟩ ! v | A ⟧ :=
 by { lifted_pred }
 
 @[predicate]
 lemma exists_action  (A : γ → act α) (v : tvar α)
-: (∃∃ i, ⟦ v : A i ⟧) = ⟦ v : λ s s', (∃ i, A i s s') ⟧ :=
+: (∃∃ i, ⟦ v | A i ⟧) = ⟦ v | λ s s', (∃ i, A i s s') ⟧ :=
 by { lifted_pred }
 
 @[simp, predicate]

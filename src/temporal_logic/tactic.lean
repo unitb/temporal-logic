@@ -869,7 +869,10 @@ meta def focus_left (ids : parse with_ident_list) : temporal unit :=
 
 meta def focusing_left (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
 do x ← focus_left' ids.opt_head,
-   focus1 (tac >> temporal.revert x >> `[rw [p_not_p_imp,← p_or_comm]])
+   focus1 (do
+     tac,
+     get_local x.local_pp_name >>= temporal.revert,
+     `[rw [p_not_p_imp,← p_or_comm]])
 
 meta def focus_right' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
@@ -881,7 +884,10 @@ meta def focus_right (ids : parse with_ident_list) : temporal unit :=
 
 meta def focusing_right (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
 do x ← focus_right' ids.opt_head,
-   focus1 (tac >> temporal.revert x >> `[rw [p_not_p_imp]])
+   focus1 (do
+     tac,
+     get_local x.local_pp_name >>= temporal.revert,
+     `[rw [p_not_p_imp]])
 
 meta def split : temporal unit :=
 do `(%%Γ ⊢ %%p ⋀ %%q) ← target,

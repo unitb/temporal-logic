@@ -56,10 +56,10 @@ notation `⦃` x `,` l:(foldl `,` (h t, pair h t) x `⦄`)  := l
 prefix `⊙`:90 := next
 prefix `◇`:95 := eventually -- \di
 prefix `◻`:95 := henceforth -- \sqw
-notation `⟦ `:max v ` : `:50 R ` ⟧`:0 := action R v
-notation `⟦ `:max v `,` v' ` : `:50 R ` ⟧`:0 := action R (pair v v')
-notation `⟦ `:max v₀ `,` v₁ `,` v₂ ` : `:50 R ` ⟧`:0 := action R (pair v₀ (pair v₁ v₂))
-notation `⟦ `:max v₀ `,` v₁ `,` v₂ `,` v₃ ` : `:50 R ` ⟧`:0 := action R (pair v₀ (pair v₁ (pair v₂ v₃)))
+notation `⟦ `:max v ` | `:50 R ` ⟧`:0 := action R v
+notation `⟦ `:max v `,` v' ` | `:50 R ` ⟧`:0 := action R (pair v v')
+notation `⟦ `:max v₀ `,` v₁ `,` v₂ ` | `:50 R ` ⟧`:0 := action R (pair v₀ (pair v₁ v₂))
+notation `⟦ `:max v₀ `,` v₁ `,` v₂ `,` v₃ ` | `:50 R ` ⟧`:0 := action R (pair v₀ (pair v₁ (pair v₂ v₃)))
 
 def tl_leads_to (p q : cpred) : cpred :=
 ◻(p ⟶ ◇q)
@@ -140,7 +140,7 @@ local infix ` <$> ` := fun_app_to_var
 local infix ` <*> ` := combine_var
 
 lemma init_eq_action {p : α → Prop} (v : tvar α)
-: ⟨p⟩ ! v = ⟦ v : λ s s', p s ⟧ :=
+: ⟨p⟩ ! v = ⟦ v | λ s s', p s ⟧ :=
 by { cases v, refl }
 
 lemma coe_eq (v : tvar α) (x : α)
@@ -148,42 +148,42 @@ lemma coe_eq (v : tvar α) (x : α)
 by { cases v, refl }
 
 lemma init_eq_action' {p : pred' α} (v : tvar α)
-: (p ! v) = ⟦ v : λ s s', p.apply s ⟧ :=
+: (p ! v) = ⟦ v | λ s s', p.apply s ⟧ :=
 by { cases v, cases p, refl }
 
 lemma next_eq_action {p : α → Prop} (v : tvar α)
-: ⊙(p <$> v) = ⟦ v : λ s s' : α, p s' ⟧ :=
+: ⊙(p <$> v) = ⟦ v | λ s s' : α, p s' ⟧ :=
 by { cases v, refl }
 
 lemma next_eq_action' {p : pred' α} (v : tvar α)
-: ⊙(p ! v) = ⟦ v : λ s s' : α, p.apply s' ⟧ :=
+: ⊙(p ! v) = ⟦ v | λ s s' : α, p.apply s' ⟧ :=
 by { cases v, cases p, refl }
 
 lemma not_action {A : act α} (v : tvar α)
-: -⟦ v : A ⟧ = ⟦ v : λ s s', ¬ A s s' ⟧ :=
+: -⟦ v | A ⟧ = ⟦ v | λ s s', ¬ A s s' ⟧ :=
 rfl
 
 lemma action_imp (p q : act α) (v : tvar α)
-: (⟦ v : λ s s' : α, p s s' → q s s' ⟧ : cpred) = ⟦ v : p ⟧ ⟶ ⟦ v : q ⟧ :=
+: (⟦ v | λ s s' : α, p s s' → q s s' ⟧ : cpred) = ⟦ v | p ⟧ ⟶ ⟦ v | q ⟧ :=
 rfl
 
 lemma action_and_action (p q : act α) (v : tvar α)
-: ⟦ v : p ⟧ ⋀ ⟦ v : q ⟧ = ⟦ v : λ s s' : α, p s s' ∧ q s s' ⟧ :=
+: ⟦ v | p ⟧ ⋀ ⟦ v | q ⟧ = ⟦ v | λ s s' : α, p s s' ∧ q s s' ⟧ :=
 rfl
 
 lemma action_or_action (p q : act α) (v : tvar α)
-: ⟦ v : p ⟧ ⋁ ⟦ v : q ⟧ = ⟦ v : λ s s' : α, p s s' ∨ q s s' ⟧ :=
+: ⟦ v | p ⟧ ⋁ ⟦ v | q ⟧ = ⟦ v | λ s s' : α, p s s' ∨ q s s' ⟧ :=
 rfl
 
 lemma action_false (v : tvar α)
-: (⟦ v : λ _ _, false ⟧ : cpred) = False :=
+: (⟦ v | λ _ _, false ⟧ : cpred) = False :=
 by { funext x, refl }
 
 variables {Γ : cpred}
 
 lemma unlift_action (A : act α) (v : tvar α)
   (h : ∀ σ σ', A σ σ')
-: Γ ⊢ ⟦ v : A ⟧ :=
+: Γ ⊢ ⟦ v | A ⟧ :=
 begin
   constructor, simp_intros [action],
   apply h

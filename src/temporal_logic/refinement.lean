@@ -24,11 +24,11 @@ variables (x : tvar α') (y : tvar β') (z : tvar γ')
 
 def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
 p ! ⦃ o,v ⦄ ⋀
-◻⟦ ⦃o,v⦄ : A ⟧
+◻⟦ v,o | A ⟧
 
 def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
 q ! ⦃ o,v ⦄ ⋀
-◻⟦ ⦃o,v⦄ : C ⟧
+◻⟦ v,o | C ⟧
 
 parameters [inhabited α']
 parameter SIM₀ : ∀ v o, (v,o) ⊨ q → ∃ w, (w,o) ⊨ p ∧ (w,v,o) ⊨ J
@@ -90,7 +90,7 @@ begin
 end
 
 lemma C_imp_A_in_w
-: Γ ⊢ ∀∀ w, ↑w ≃ witness ⟶ ◻(⟦ ⦃o,v⦄ : C ⟧ ⟶ ⟦ ⦃o,w⦄ : A ⟧) :=
+: Γ ⊢ ∀∀ w, ↑w ≃ witness ⟶ ◻(⟦ v,o | C ⟧ ⟶ ⟦ w,o | A ⟧) :=
 begin [temporal]
   intros w Hw,
   have := J_inv_in_w p q A C J SIM₀ @SIM v o Γ H,
@@ -157,7 +157,7 @@ parameters [_inst : inhabited α']
 
 include FIS₀ FIS _inst
 lemma witness_construction
-: ⊩ ∃∃ v, p ! v ⋀ ◻⟦ v : A ⟧ :=
+: ⊩ ∃∃ v, p ! v ⋀ ◻⟦ v | A ⟧ :=
 begin
   intro,
   let o : tvar unit := ↑(),
@@ -171,7 +171,7 @@ begin
     revert this,
     let f : tvar (plift α') → tvar α' := λ v, ⟨plift.down⟩ ! v,
     let SPEC := @SPEC₀ _ _ p' (A' H₀ INV),
-    let SPEC' := λ (v : tvar α'), p ! v ⋀ ◻⟦ v : A ⟧,
+    let SPEC' := λ (v : tvar α'), p ! v ⋀ ◻⟦ v | A ⟧,
     apply p_exists_imp_p_exists' (λ w, SPEC w o) SPEC' f,
     intro, simp only [SPEC,f,SPEC',SPEC₀,p',prj,proj_assoc,pair.fst_mk,A'],
     monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.fst_mk'],
@@ -209,18 +209,18 @@ parameters p q cs₀ fs₀ cs₁ fs₁
 
 def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
 p ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ ⦃o,v⦄ : A i ⟧) ⋀
-∀∀ i, sched (cs₀ i ! ⦃o,v⦄) (fs₀ i ! ⦃o,v⦄) ⟦ ⦃o,v⦄ : A i ⟧
+◻(∃∃ i, ⟦ v,o | A i ⟧) ⋀
+∀∀ i, sched (cs₀ i ! ⦃o,v⦄) (fs₀ i ! ⦃o,v⦄) ⟦ v,o | A i ⟧
 
 def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
 q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ ⦃o,v⦄ : C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ ⦃o,v⦄ : C i ⟧
+◻(∃∃ i, ⟦ v,o | C i ⟧) ⋀
+∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ v,o | C i ⟧
 
 def SPEC₂ (v : tvar β') (o : tvar γ') (s : tvar evt) : cpred :=
 q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, s ≃ ↑i ⋀ ⟦ ⦃o,v⦄ : C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) (s ≃ ↑i ⋀ ⟦ ⦃o,v⦄ : C i ⟧)
+◻(∃∃ i, s ≃ ↑i ⋀ ⟦ v,o | C i ⟧) ⋀
+∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) (s ≃ ↑i ⋀ ⟦ v,o | C i ⟧)
 
 end specs
 
@@ -241,8 +241,8 @@ parameters β' γ'
 
 variable Hpo : ∀ e w,
   one_to_one_po (SPEC₁ v o ⋀ ◻(J ! ⦃o,v,w⦄))
-    (cs₁ e!⦃o,v⦄) (fs₁ e!⦃o,v⦄) ⟦ ⦃o,v⦄ : C e⟧
-    (cs₀ e!⦃o,w⦄) (fs₀ e!⦃o,w⦄) ⟦ ⦃o,w⦄ : A e⟧
+    (cs₁ e!⦃o,v⦄) (fs₁ e!⦃o,v⦄) ⟦ v,o | C e⟧
+    (cs₀ e!⦃o,w⦄) (fs₀ e!⦃o,w⦄) ⟦ w,o | A e⟧
 parameters {β' γ'}
 
 section SPEC₂
@@ -278,6 +278,7 @@ begin
   revert SIM₀, intros_mono,
   simp [J'],
 end
+
 omit SIM₀
 include SIM
 lemma SIM' (w : α') (v : evt × β') (o : γ') (v' : evt × β') (o' : γ')
@@ -285,19 +286,21 @@ lemma SIM' (w : α') (v : evt × β') (o : γ') (v' : evt × β') (o' : γ')
   (h₁ : Next_c (v, o) (v', o'))
 : (∃ (w' : α'), Next_a (w, o) (w', o') ∧ (w', v', o') ⊨ J') :=
 sorry
+
 omit SIM
 lemma H'
 : Γ ⊢ simulation.SPEC₁ q' Next_c ⦃v,sch⦄ o :=
 sorry
+
 parameters p q cs₁ fs₁
 lemma Hpo' (w : tvar α') (e : evt)
 : one_to_one_po (SPEC₂ v o sch ⋀ ◻(J ! ⦃o,v,w⦄))
 /- -/ (cs₁ e ! ⦃o,v⦄)
       (fs₁ e ! ⦃o,v⦄)
-      (sch ≃ ↑e ⋀ ⟦ v,o : C e ⟧)
+      (sch ≃ ↑e ⋀ ⟦ v,o | C e ⟧)
 /- -/ (cs₀ e ! ⦃o,w⦄)
       (fs₀ e ! ⦃o,w⦄)
-      ⟦ w,o : A e ⟧
+      ⟦ w,o | A e ⟧
 := sorry
 
 end Simulation_POs
@@ -327,7 +330,7 @@ begin [temporal]
       simp [exists_action],
       intros e h₀ h₁, apply this _,
       simp [Next_c],
-      suffices : ⟦ ⦃o,⦃v,sch⦄⦄ : λ (σ σ' : (evt × β') × γ'), ((λ s s', s = e) on (prod.fst ∘ prod.fst)) σ σ' ∧ (C e on map_left snd) σ σ' ⟧,
+      suffices : ⟦ ⦃v,sch⦄,o | λ (σ σ' : (evt × β') × γ'), ((λ s s', s = e) on (prod.fst ∘ prod.fst)) σ σ' ∧ (C e on map_left snd) σ σ' ⟧,
       revert this, action
       { simp [function.on_fun],
         intros, subst e, assumption, },

@@ -41,8 +41,8 @@ def one_to_one_po' {α β} (S : cpred)
   (v₀) (w₀)
 : Prop :=
 one_to_one_po S
-  (e₀.p!v₀) (e₀.q!v₀) ⟦ v₀ : e₀.A ⟧
-  (e₁.p!w₀) (e₁.q!w₀) ⟦ w₀ : e₁.A ⟧
+  (e₀.p!v₀) (e₀.q!v₀) ⟦ v₀ | e₀.A ⟧
+  (e₁.p!w₀) (e₁.q!w₀) ⟦ w₀ | e₁.A ⟧
 
 section one_to_one
 
