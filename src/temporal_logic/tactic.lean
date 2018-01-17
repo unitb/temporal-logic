@@ -71,16 +71,26 @@ get_app_args_aux' []
 
 end expr
 
+meta def guarded {α β} : list (tactic α × tactic β) → tactic β
+ | [] := failed
+ | ((x,y) :: xs) :=
+do x ← try_core x,
+   if x.is_some then
+     y
+   else guarded xs
+
 meta def t_to_expr : pexpr → temporal expr
 | e@(expr.app e₀ e₁) :=
    to_expr e <|>
 do e' ← t_to_expr e₀,
-   t ← infer_type e',
-   -- trace t,
-   match_expr ``(_ ⊢ _ ⟶ _) t >> to_expr ``(p_impl_revert %%e' %%e₁) <|>
-        match_expr ``(_ ⊢ ◻(_ ⟶ _)) t >> to_expr ``(henceforth_deduction %%e' %%e₁) <|>
-        match_expr ``(_ ⊢ ∀∀ _, _) t >> to_expr ``(p_forall_revert %%e %%e₁) <|>
-        to_expr ``(%%e %%e₁)
+   guarded
+     [ ( to_expr ``(%%e' : _ ⊢ _ ⟶ _) >>= type_check
+       , to_expr ``(p_impl_revert %%e' %%e₁))
+     , ( to_expr ``(%%e' : _ ⊢ ◻(_ ⟶ _)) >>= type_check
+       , to_expr ``(henceforth_deduction %%e' %%e₁))
+     , ( to_expr ``(%%e' : _ ⊢ p_forall _) >>= type_check
+       , to_expr ``(p_forall_revert %%e' %%e₁))
+     , (return (), to_expr ``(%%e %%e₁)) ]
 | e := to_expr e
 
 meta def t_to_expr_for_apply (q : pexpr) : temporal expr :=
@@ -975,7 +985,7 @@ tactic.interactive.specialize h
 meta def type_check
    (e : parse texpr)
 : tactic unit :=
-tactic.interactive.type_check e
+do e ← t_to_expr e, tactic.type_check e, infer_type e >>= trace
 
 def with_defaults {α} : list α → list α → list α
  | [] xs := xs
@@ -1021,7 +1031,11 @@ do gs ← get_goals,
 
 meta def replace (n : parse ident)
 : parse (parser.tk ":" *> texpr)? → parse (parser.tk ":=" *> texpr)? → temporal unit
-| none prf := tactic.interactive.replace n none prf >> try (simp tt [] [] (loc.ns [some n]))
+| none (some prf) :=
+do prf ← t_to_expr prf,
+   tactic.interactive.replace n none (to_pexpr prf) >> try (simp tt [] [] (loc.ns [some n]))
+| none none :=
+tactic.interactive.replace n none none
 | (some t) (some prf) :=
 do t' ← to_expr t >>= infer_type,
    tl ← tt <$ match_expr ``(pred' _) t' <|> pure ff,
@@ -1038,7 +1052,7 @@ do t' ← to_expr t >>= infer_type,
 
 meta def transitivity : parse texpr? → temporal unit
  | none := apply ``(predicate.p_imp_trans )
- | (some p) := apply ``(@predicate.p_imp_trans _ _ _ %%p _)
+ | (some p) := apply ``(@predicate.p_imp_trans _ _ _ %%p _ _ _)
 
 end interactive
 

@@ -1,4 +1,4 @@
-import temporal_logic.lemmas
+import temporal_logic.basic
 
 universe variables u u₀ u₁ u₂
 
@@ -12,11 +12,6 @@ section pair
 variables {α' : Type u} {β' : Type u₀} {γ' : Type u₁}
 variables (x : tvar α') (y : tvar β') (z : tvar γ')
 
-def pair : tvar (α' × β') :=
-lifted₂ prod.mk x y
-
-notation `⦃` x `,` l:(foldl `,` (h t, pair h t) x `⦄`)  := l
-
 @[simp]
 lemma pair_model (i : ℕ) :
 i ⊨ ⦃x,y⦄ = (i ⊨ y,i ⊨ x) :=
@@ -24,21 +19,21 @@ by { cases x, cases y, refl }
 
 @[reducible]
 def pair.fst : var (α' × β') α' :=
-↑(@prod.fst α' β')
+⟨ @prod.fst α' β' ⟩
 
 @[simp]
 def pair.fst_mk (x : tvar α') (y : tvar β')
-: pair.fst ;; ⦃y,x⦄ = x :=
+: pair.fst ! ⦃y,x⦄ = x :=
 by lifted_pred
 
 @[simp]
 def pair.fst_mk' (x : tvar α') (y : tvar β')
-: ↑(@prod.fst α' β') ;; ⦃y,x⦄ = x :=
+: ⟨ @prod.fst α' β' ⟩ ! ⦃y,x⦄ = x :=
 pair.fst_mk _ _
 
 @[simp]
 def pair.snd_mk' (x : tvar α') (y : tvar β')
-: ↑(@prod.snd α' β') ;; ⦃y,x⦄ = y :=
+: ⟨ @prod.snd α' β' ⟩ ! ⦃y,x⦄ = y :=
 by lifted_pred
 
 @[simp]
@@ -52,12 +47,12 @@ open temporal.prod
 
 @[simp]
 lemma map_right_proj_pair (f : α' → γ')
-: ((@map_right β' _ _ f) : var (β' × α') (β' × γ')) ;; ⦃x,y⦄ = ⦃↑f ;; x, y⦄ :=
+: ⟨map_right f⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x, y⦄ :=
 by funext i ; simp [map_right]
 
 @[simp]
 lemma map_left_proj_pair (f : α' → γ')
-: ((@map_left _ _ β' f) : var (α' × β') (γ' × β')) ;; ⦃y,x⦄ = ⦃y, ↑f ;; x⦄ :=
+: ⟨map_left f⟩ ! ⦃y,x⦄ = ⦃y, ⟨f⟩ ! x⦄ :=
 by funext i ; simp [map_left]
 
 end pair

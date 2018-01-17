@@ -1,7 +1,7 @@
 -- import temporal_logic.tactic
 import temporal_logic.lemmas
 
-universes u
+universes u u₀ u₁
 
 open predicate temporal
 
@@ -26,17 +26,43 @@ by { unfold sched, apply_instance }
 
 end defs
 -- TODO(Simon) replace ~> with ◻◇_ ⟶ ◻◇_
+
+structure one_to_one_po (S p q A p' q' A' : cpred) : Prop :=
+  (delay : S ⟹ (p' ⋀ q' ~> p))
+  (resched : S ⟹ (p' ⋀ q' ~> q))
+  (stable : S ⟹ (◻◇p ⟶ ◇◻p' ⟶ ◇◻p))
+  (sim : S ⟹ ◻(A ⟶ A'))
+
+structure event (α : Type u₀) (β : Type u₁) :=
+(p q : pred' α) (A : act β)
+
+def one_to_one_po' {α β} (S : cpred)
+  (e₀ : event α α) (e₁ : event β β)
+  (v₀) (w₀)
+: Prop :=
+one_to_one_po S
+  (e₀.p!v₀) (e₀.q!v₀) ⟦ v₀ : e₀.A ⟧
+  (e₁.p!w₀) (e₁.q!w₀) ⟦ w₀ : e₁.A ⟧
+
 section one_to_one
 
-variables {p q A : cpred}
-variables {p' q' A' : cpred}
-variables Γ : cpred
+parameters {S p q A : cpred}
+parameters {p' q' A' : cpred}
+parameters po : one_to_one_po S p q A p' q' A'
+parameters Γ : cpred
+parameters hS : Γ ⊢ S
+private def H₀ : Γ ⊢ p' ⋀ q' ~> p :=
+po.delay Γ hS
 
-variables H₀ : Γ ⊢ p' ⋀ q' ~> p
-variables H₁ : Γ ⊢ ◻◇p ⟶ ◇◻p ⋁ ◻◇-p'
-variables H₂ : Γ ⊢ ◻(A ⟶ A')
-variables H₃ : Γ ⊢ p' ⋀ q' ~> q
-include H₀ H₁ H₂ H₃
+private def H₁ : Γ ⊢ ◻◇p ⟶ ◇◻p' ⟶ ◇◻p :=
+po.stable Γ hS
+
+private def H₂ : Γ ⊢ ◻(A ⟶ A') :=
+po.sim Γ hS
+private def H₃ : Γ ⊢ p' ⋀ q' ~> q :=
+po.resched Γ hS
+
+include po hS
 
 lemma replacement
 : Γ ⊢ sched p q A ⟶ sched p' q' A' :=
@@ -45,13 +71,16 @@ begin [temporal]
   have swc := coincidence a_1 a_2,
   have wc : ◇◻p,
   { assume_negation, simp at h,
-    rw [p_or_comm,← p_not_p_imp] at H₁, simp at H₁,
+    have H₁ := H₁ po Γ hS,
+    have H₀ := H₀ po Γ hS,
     apply H₁ _ a_1,
     apply inf_often_of_leads_to H₀ swc, },
   have sc : ◻◇q,
-  { apply inf_often_of_leads_to H₃ swc, },
+  { have H₃ := H₃ po Γ hS,
+    apply inf_often_of_leads_to H₃ swc, },
   replace a := a wc sc, revert a,
-  { persistent, monotonicity, apply H₂, },
+  { have H₂ := H₂ po Γ hS,
+    persistent, monotonicity, apply H₂, },
 end
 
 end one_to_one

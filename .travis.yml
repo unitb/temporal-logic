@@ -49,10 +49,6 @@ matrix:
   - os: linux
     addons: *3
     env: CMAKE_CXX_COMPILER=g++-6 CMAKE_BUILD_TYPE=Release MULTI_THREAD=OFF
-  - os: osx
-    addons: &4
-    env: CMAKE_CXX_COMPILER=clang++ CMAKE_BUILD_TYPE=Release TARGET=build/lean-3.1.1-darwin.zip
-      UPLOAD=ON PACKAGE=TRUE
   allow_failures:
   - env: CMAKE_CXX_COMPILER=g++-6 CMAKE_BUILD_TYPE=Release LATEST=true
 before_install:
