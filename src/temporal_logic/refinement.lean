@@ -8,8 +8,6 @@ open predicate nat
 
 variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
 
-local attribute [-simp] or.comm or.left_comm or.assoc and.comm and.left_comm and.assoc
-
 namespace temporal
 
 namespace simulation
@@ -83,7 +81,7 @@ begin
     have := H.left.apply _ a, simp at this,
     exact this },
   { simp [w],
-    specialize @SIM _ (x + i ⊨ v) (x + i ⊨ o) (x + succ i ⊨ v) (x + succ i ⊨ o) ih_1,
+    specialize @SIM _ (x + i ⊨ v) (x + i ⊨ o) (x + succ i ⊨ v) (x + succ i ⊨ o) i_ih,
     apply_epsilon_spec (SIM _), simp,
     replace H := (H.apply _ a).right i,
     simp at H, simp [add_succ,H], },

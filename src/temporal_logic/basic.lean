@@ -9,8 +9,6 @@ Strenghtening lemmas to facilitate the stripping of small details in application
 Expected shape `∀ p : pred' α, ⊩ f p ⟶ g p`
 " }
 
-local attribute [-simp] or.comm or.left_comm or.assoc and.comm and.left_comm and.assoc
-
 namespace tactic.interactive
 open lean interactive.types
 open interactive lean.parser tactic
@@ -94,7 +92,7 @@ h' _
 @[simp]
 lemma hence_true : ◻(True : cpred) = True :=
 begin
-  funext1,
+  ext1,
   split ; intro h,
   { trivial },
   { intro, trivial }
@@ -195,7 +193,7 @@ lemma henceforth_next_intro (p : cpred)
 @[simp]
 lemma eventually_eventually (p : cpred) : ◇◇ p = ◇ p :=
 begin
-  funext k,
+  ext k,
   split
   ; unfold eventually
   ; intro h
@@ -211,7 +209,7 @@ end
 @[simp]
 lemma henceforth_henceforth (p : cpred) : ◻◻ p = ◻ p :=
 begin
-  funext _,
+  ext _,
   split
   ; intro h,
   { intro i,
@@ -228,7 +226,7 @@ end
 @[simp]
 lemma hence_false : ◻(False : cpred) = False :=
 begin
-  funext _,
+  ext _,
   split ; intro h,
   { cases h 0 },
   { cases h }
@@ -237,7 +235,7 @@ end
 @[simp]
 lemma event_false : ◇(False : cpred) = False :=
 begin
-  funext _,
+  ext _,
   split ; intro h,
   { cases h with _ h, cases h },
   { cases h }
@@ -246,7 +244,7 @@ end
 @[simp]
 lemma eventually_true : ◇(True : cpred) = True :=
 begin
-  funext1,
+  ext1,
   split ; intro h,
   { trivial },
   { apply exists.intro 0, trivial }
@@ -330,7 +328,7 @@ by monotonicity f
 lemma henceforth_and (p q : cpred)
 : ◻(p ⋀ q) = ◻p ⋀ ◻q :=
 begin
-  funext1,
+  ext1,
   repeat { split ; intros }
   ; intros i ; try { simp, split },
   { apply (a i).left },
@@ -342,7 +340,7 @@ end
 lemma henceforth_forall (P : α → cpred)
 : ◻(∀∀ x, P x) = ∀∀ x, ◻P x :=
 begin
-  funext1,
+  ext1,
   simp [henceforth,p_forall],
   rw forall_swap,
 end
@@ -351,14 +349,14 @@ end
 lemma not_eventually (p : cpred)
 : (-◇p) = (◻-p) :=
 begin
-  funext1,
+  ext1,
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
 lemma eventually_exists (P : α → cpred)
 : ◇(∃∃ x, P x) = ∃∃ x, ◇P x :=
 begin
-  funext1,
+  ext1,
   unfold eventually p_exists,
   split
   ; intro H

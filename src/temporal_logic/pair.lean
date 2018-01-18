@@ -2,8 +2,6 @@ import temporal_logic.basic
 
 universe variables u u₀ u₁ u₂
 
-local attribute [-simp] or.comm or.left_comm or.assoc and.comm and.left_comm and.assoc
-
 namespace temporal
 open predicate
 
@@ -48,12 +46,12 @@ open temporal.prod
 @[simp]
 lemma map_right_proj_pair (f : α' → γ')
 : ⟨map_right f⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x, y⦄ :=
-by funext i ; simp [map_right]
+by ext i ; simp [map_right]
 
 @[simp]
 lemma map_left_proj_pair (f : α' → γ')
 : ⟨map_left f⟩ ! ⦃y,x⦄ = ⦃y, ⟨f⟩ ! x⦄ :=
-by funext i ; simp [map_left]
+by ext i ; simp [map_left]
 
 end pair
 

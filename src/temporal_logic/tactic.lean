@@ -218,7 +218,7 @@ do `(%%τ ⊨ _) ← target,
    α ← infer_type τ,
    `[rw ← eq_judgement],
    r ← local_context >>= mfoldl (λ a h, (+) a <$> semantic_assumption τ h) 0,
-   tactic.interactive.generalize none (``(↑(eq %%τ) : pred' %%α), `Γ),
+   tactic.interactive.generalize none () (``(↑(eq %%τ) : pred' %%α), `Γ),
    intron r
 
 
@@ -262,12 +262,11 @@ do lmms ← attribute.get_instances `strengthening,
 
 meta def interactive.apply' (q : parse texpr) : temporal unit :=
 do l ← t_to_expr_for_apply q, tactic.trace l,
-   tactic.apply l <|> interactive.strengthening (tactic.apply l)
-                  <|> tactic.apply l  -- we try `tactic.apply l` again
-                                      -- knowing that if we go back to
-                                      -- it, it will fail and we'll have
-                                      -- a proper error message
-
+   () <$ tactic.apply l <|> interactive.strengthening (() <$ tactic.apply l)
+                        <|> () <$ tactic.apply l -- we try `tactic.apply l` again
+                                                 -- knowing that if we go back to
+                                                 -- it, it will fail and we'll have
+                                                 -- a proper error message
 
 end
 
@@ -294,7 +293,7 @@ begin
     { apply H, simp, },
     replace H : Π (q : cpred), q ∈ xs → persistent q,
     { intros, apply H, right, xassumption, },
-    apply @ih_1 H, intros,
+    apply @xs_ih H, intros,
     apply h,
     rw henceforth_and,
     simp [is_persistent],
@@ -397,12 +396,12 @@ begin
     apply p_imp_intro φ,
     { introv h₀, apply h, auto },
     auto, },
-  case list.cons p ps
+  case list.cons : p ps
   { simp [with_asms] at h ⊢,
     intro hp,
     have h_and := (p_and_intro φ p Γ) h' hp,
     revert h_and,
-    apply ih_1,
+    apply ps_ih,
     intros, xassumption,
     apply p_and_elim_left φ p Γ_1 a,
     apply p_and_elim_right φ p Γ_1 a,  }
@@ -468,11 +467,12 @@ meta def timeless_congr_attr : user_attribute :=
 
 meta def apply_lifted_congr : tactic unit :=
 do xs ← attribute.get_instances `lifted_congr,
-   xs.any_of (λ thm, do l ← resolve_name thm >>= to_expr, apply l)
+   xs.any_of (λ thm, do l ← resolve_name thm >>= to_expr, apply l),
+   return ()
 
 meta def apply_timeless_congr : tactic unit :=
 do xs ← attribute.get_instances `timeless_congr,
-   xs.any_of (λ thm, do l ← resolve_name thm >>= to_expr, apply l) <|> apply_lifted_congr
+   xs.any_of (λ thm, do l ← resolve_name thm >>= to_expr, () <$ apply l) <|> apply_lifted_congr
 
 meta def force (p : pexpr) (e : expr) : tactic expr :=
 do p' ← to_expr p,
@@ -704,7 +704,7 @@ do `(%%Γ ⊢ _) ← target,
      e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
      note h.local_pp_name none e,
      tactic.clear h),
-   try $ tactic.interactive.simp ff
+   try $ tactic.interactive.simp none ff
        (map simp_arg_type.expr [``(function.comp),``(temporal.init)]) []
        (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
    done <|> solve1 (tactic.clear hΓ >> tactic.clear Γ >> tac)
@@ -766,11 +766,11 @@ tactic.interactive.refine e
 meta def apply (q : parse texpr) : temporal unit :=
 focus1 $
 do l ← t_to_expr_for_apply q,
-   tactic.apply l <|> strengthening (tactic.apply l)
-                  <|> tactic.apply l, -- we try `tactic.apply l` again
-                                      -- knowing that if we go back to
-                                      -- it, it will fail and we'll have
-                                      -- a proper error message
+   () <$ tactic.apply l <|> strengthening (() <$ tactic.apply l)
+                        <|> () <$ tactic.apply l, -- we try `tactic.apply l` again
+                                                  -- knowing that if we go back to
+                                                  -- it, it will fail and we'll have
+                                                  -- a proper error message
    all_goals (try $ execute (pure ()))
 
 meta def trivial : temporal unit :=
@@ -847,7 +847,7 @@ do `(_ ⊢ %%t) ← target,
    solve1 (do h ← get_local h, tactic.exact h)
 
 meta def induction
-  (obj : parse texpr)
+  (obj : parse interactive.cases_arg_p)
   (rec_name : parse using_ident)
   (ids : parse with_ident_list)
   (revert : parse $ (tk "generalizing" *> ident*)?)
@@ -856,7 +856,7 @@ do `(%%Γ ⊢ _) ← target,
    tactic.interactive.induction obj rec_name ids revert ;
      (local_context >>= mmap' (uniform_assumptions Γ))
 
-meta def case (ctor : parse ident) (ids : parse ident_*) (tac : itactic) : tactic unit :=
+meta def case (ctor : parse ident*) (ids : parse ident_*) (tac : itactic) : tactic unit :=
 tactic.interactive.case ctor ids tac
 
 meta def focus_left' (id : option name) : temporal expr :=
@@ -964,7 +964,7 @@ meta def simp (no_dflt : parse only_flag)
               (cfg : simp_config_ext := {}) : temporal unit :=
 -- if locat.include_goal
 -- then strengthening $ tactic.interactive.simp no_dflt hs attr_names locat cfg
-do tactic.interactive.simp no_dflt hs attr_names locat cfg,
+do tactic.interactive.simp none no_dflt hs attr_names locat cfg,
    try refl
 
 meta def exfalso : temporal unit :=
@@ -1112,7 +1112,7 @@ do ex ← (if ¬ only_pers then do
    if ex
    then persistently $ do
           to_expr ``(tl_imp _ _ _) >>= change,
-          tactic.repeat_exactly n tactic.interactive.monotonicity1
+          tactic.iterate_exactly n tactic.interactive.monotonicity1
    else tactic.interactive.monotonicity1
 
 meta def monotonicity (only_pers : parse only_flag) (e : parse assert_or_rule?) : temporal unit :=
@@ -1174,7 +1174,7 @@ do `(%%Γ ⊢ _) ← target,
      τ ← intro1,
      try $ temporal.interactive.simp tt [] [`predicate] (loc.ns [none]) ,
      try $ tactic.interactive.TL_unfold [`init] (loc.ns [none]),
-     try $ tactic.interactive.generalize none (``(%%τ 0),`σ),
+     try $ tactic.interactive.generalize none () (``(%%τ 0),`σ),
      target >>= beta_reduction >>= change,
      intro_lst n,
      tac),

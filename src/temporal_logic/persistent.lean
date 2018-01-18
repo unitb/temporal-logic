@@ -93,7 +93,7 @@ begin
   induction xs with x xs,
   { simp [with_h_asms] at h, apply h },
   { simp [list.foldr,henceforth_and] at h',
-    apply ih_1,
+    apply xs_ih,
     { revert h',
       apply p_impl_revert,
       apply p_and_elim_right },

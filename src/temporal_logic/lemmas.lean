@@ -94,7 +94,7 @@ end
 @[simp]
 lemma not_henceforth (p : cpred) : (- ◻p) = (◇-p) :=
 begin
-  funext1,
+  ext1,
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
@@ -136,7 +136,7 @@ by refl
 lemma eventually_p_or (p q : cpred)
 : ◇(p ⋁ q) = ◇p ⋁ ◇q :=
 begin
-  funext1,
+  ext1,
   simp [eventually,exists_or],
 end
 
@@ -148,7 +148,7 @@ begin
   intros τ hΓ hp i,
   induction i with i,
   assumption,
-  have := h.apply τ hΓ i ih_1,
+  have := h.apply τ hΓ i i_ih,
   simp [next] at this,
   simp [this],
 end
@@ -217,7 +217,7 @@ begin
   induction k with k,
   { simp [a] },
   { simp [add_succ],
-    specialize h _ ih_1 (hnq _),
+    specialize h _ k_ih (hnq _),
     rw [or_comm,or_iff_not_imp] at h,
     apply h, rw [← add_succ,← add_succ],
     apply hnq }
@@ -266,7 +266,7 @@ begin
     explicit τ
     { cases h with j h, cases hb with i ha,
       simp [eventually], existsi i,
-      split ; [exact ha,skip],
+      split ; [skip,exact ha],
       cases le_total i j with h' h',
       { existsi (j-i),
         simp [drop_drop,add_sub_of_le h'],
@@ -526,13 +526,13 @@ begin [temporal]
     { simp [or_self], },
     apply temporal.leads_to_cancellation (P _),
     rw_using : (p ⋀ (f ≺≺ x)) = (∃∃v, ↑(v << x) ⋀ (p ⋀ (f ≃ v))),
-    { funext1 τ, simp only with predicate, rw exists_one_point (f.apply τ), simp,
+    { ext1 τ, simp only with predicate, rw exists_one_point (f.apply τ), simp [and_comm],
       intro k, simp, intros, subst k },
     apply @temporal.leads_to_disj_rng _ ,
     apply ih_1, },
   have h₃ := temporal.leads_to_disj h₂,
   rw_using : (∃∃ (i : β), p ⋀ (f ≃ i)) = p at h₃,
-  { funext1 j, simp [function.comp,exists_one_point_right ], },
+  { ext1 j, simp [function.comp,exists_one_point_right ], },
 end
 
 end induction
@@ -556,7 +556,7 @@ begin [temporal]
     have IH' := temporal.leads_to_disj_rng ih_1, clear ih_1,
     rw_using : (∃∃ (i : β'), ↑(i << v) ⋀ (p ⋀ V ≃ i))
              = (V ≺≺ v ⋀ p) at IH',
-    { funext τ,
+    { ext τ,
       simp [flip,function.comp],
       split ; simp ; intros, rw a_2, split ; assumption,
       split, repeat { split, assumption }, refl  },
@@ -570,7 +570,7 @@ begin [temporal]
   have H := @temporal.leads_to_disj _ (λ v : β', (p ⋀ V ≃ v)) (q ⋁ ◻-p) _ Hex,
   dsimp [tl_leads_to] at H,
   rw_using : (∃∃ (v : β'), p ⋀ (V ≃ v)) = p at H,
-  { funext τ, simp [function.comp,exists_one_point_right] },
+  { ext τ, simp [function.comp,exists_one_point_right] },
   rw [p_or_comm] at H,
   intros h,
   have H₁ := inf_often_of_leads_to H h,
