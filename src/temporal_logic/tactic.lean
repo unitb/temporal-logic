@@ -178,6 +178,9 @@ c >>[tactic] cleanup
 meta def istep {α : Type} (line0 col0 line col : nat) (c : temporal α) : temporal unit :=
 tactic.istep line0 col0 line col c
 
+meta def show_tags :=
+get_goals >>= mmap' (λ g, get_tag g >>= (trace : list name → tactic unit))
+
 meta def uniform_assumptions' (Γ : expr)
 : expr → expr → temporal (option (expr × expr))
 | h t := do
@@ -195,14 +198,20 @@ meta def uniform_assumptions' (Γ : expr)
     | p := guard (¬ Γ.occurs p) >> pure none
    end
 
+meta def protect_tags {α : Sort*} (tac : temporal α) : temporal α :=
+with_enable_tags $
+do t ← get_main_tag,
+   tac <* set_main_tag t
+
 meta def uniform_assumptions (Γ h : expr) : temporal unit :=
 do t ← infer_type h,
    (some r) ← try_core (uniform_assumptions' Γ h t) | clear h,
    match r with
     | (some (pr,t)) :=
           do  p ← to_expr ``(%%Γ ⊢ %%t),
-              assertv h.local_pp_name p pr,
-              clear h
+              protect_tags (do
+                assertv h.local_pp_name p pr,
+                clear h)
     | none := return ()
    end
 
@@ -261,7 +270,7 @@ do lmms ← attribute.get_instances `strengthening,
      tac
 
 meta def interactive.apply' (q : parse texpr) : temporal unit :=
-do l ← t_to_expr_for_apply q, tactic.trace l,
+do l ← t_to_expr_for_apply q,
    () <$ tactic.apply l <|> interactive.strengthening (() <$ tactic.apply l)
                         <|> () <$ tactic.apply l -- we try `tactic.apply l` again
                                                  -- knowing that if we go back to
@@ -853,10 +862,10 @@ meta def induction
   (revert : parse $ (tk "generalizing" *> ident*)?)
 : tactic unit :=
 do `(%%Γ ⊢ _) ← target,
-   tactic.interactive.induction obj rec_name ids revert ;
+   (tactic.interactive.induction obj rec_name ids revert) ;
      (local_context >>= mmap' (uniform_assumptions Γ))
 
-meta def case (ctor : parse ident*) (ids : parse ident_*) (tac : itactic) : tactic unit :=
+meta def case (ctor : parse ident*) (ids) (tac : itactic) : tactic unit :=
 tactic.interactive.case ctor ids tac
 
 meta def focus_left' (id : option name) : temporal expr :=
