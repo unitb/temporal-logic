@@ -1203,6 +1203,42 @@ meta def transitivity : parse texpr? → temporal unit
  | none := apply ``(predicate.p_imp_trans )
  | (some p) := apply ``(@predicate.p_imp_trans _ _ _ %%p _ _ _)
 
+lemma witness_elim {α} {P : tvar α → cpred} {Γ : cpred}
+  (x₀ : tvar α)
+  (f : tvar (α → α))
+  (h : Γ ⊢ ∀∀ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) ⟶ P w)
+: Γ ⊢ ∃∃ w, P w :=
+begin [temporal]
+  have := witness x₀ f Γ,
+  revert this,
+  apply p_exists_p_imp_p_exists _ _ h,
+end
+
+meta def select_witness
+  (w : parse $ ident_ <* tk ":")
+  (p : parse texpr)
+  (asm : parse $ optional $ tk "with" *> ident): temporal unit :=
+do `(%%Γ ⊢ p_exists %%q) ← target,
+   u ← mk_meta_univ,
+   t ← mk_meta_var (expr.sort u),
+   t ← mk_app `temporal.tvar [t],
+   t' ← to_expr ``(%%t → cpred),
+   (_,p) ← solve_aux t' (do
+     tactic.intro w
+       <* (to_expr p >>= tactic.exact))
+     <|> fail
+"in tactic `select_witness w : P w`, `P w` should be of the form
+`w ≃ x₀ ⋀ ◻(⊙w ≃ f w)`, where `x₀ : tvar α`, `f : tvar (α → α)`",
+   v ← mk_local_def w t,
+   p' ← head_beta (p v),
+   q' ← head_beta (q v),
+   new_g ← to_expr ``(%%p' ⟶ %%q'),
+   new_g ← to_expr ``(%%Γ ⊢ p_forall %%(new_g.lambdas [v])),
+   h ← assert `h new_g,
+   temporal.interactive.intros [w,asm.get_or_else `_],
+   tactic.swap,
+   mk_app `temporal.interactive.witness_elim [h] >>= tactic.exact
+
 end interactive
 
 /- end monotonicity -/

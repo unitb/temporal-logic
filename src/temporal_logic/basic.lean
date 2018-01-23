@@ -388,4 +388,28 @@ begin
   simp,
 end
 
+section witness
+variables x₀ : tvar α
+variables f : tvar (α → α)
+variables (i : ℕ)
+
+open classical nat
+
+private def w : ℕ → α
+ | 0 := i ⊨ x₀
+ | (succ j) := (i + j ⊨ f) (w j)
+
+lemma witness
+: ⊩ ∃∃ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) :=
+begin
+  lifted_pred,
+  existsi (⟨ λ i, w x₀ f x (i - x) ⟩ : tvar α),
+  simp [nat.sub_self,w],
+  intro i,
+  have h : x + i ≥ x := nat.le_add_right _ _,
+  simp [next,nat.add_sub_cancel_left,succ_sub h,w],
+end
+
+end witness
+
 end temporal

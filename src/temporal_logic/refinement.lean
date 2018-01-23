@@ -39,76 +39,6 @@ parameter SIM
 
 parameters (v : tvar β') (o : tvar γ')
 
-section witness
-variables x₀ : tvar α'
-variables f : tvar (α' → α')
-variables (i : ℕ)
-
-open classical
-
-private def w : ℕ → α'
- | 0 := i ⊨ x₀
--- (ε w', (w',i ⊨ o) ⊨ p ∧ (w', i ⊨ v, i ⊨ o) ⊨ J)
- | (succ j) := (i + j ⊨ f) (w j)
-            -- (ε w', A (w j,i+j ⊨ o) (w',i + succ j ⊨ o) ∧
-            --           (w', i + succ j ⊨ v, i + succ j ⊨ o) ⊨ J)
-
-lemma witness
-: ⊩ ∃∃ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) :=
-begin
-  lifted_pred,
-  existsi (⟨ λ i, w x₀ f x (i - x) ⟩ : tvar α'),
-  simp [nat.sub_self,w],
-  intro i,
-  have h : x + i ≥ x := nat.le_add_right _ _,
-  simp [next,nat.add_sub_cancel_left,succ_sub h,w],
-end
-
-lemma witness_elim {P : tvar α' → cpred} {Γ : cpred}
-  (h : Γ ⊢ ∀∀ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) ⟶ P w)
-: Γ ⊢ ∃∃ w, P w :=
-begin [temporal]
-  have := witness x₀ f Γ,
-  revert this,
-  apply p_exists_p_imp_p_exists _ _ h,
-end
-
-open interactive interactive.types lean.parser tactic
-
-meta def with_witness
-  (w : parse $ ident_ <* tk ":")
-  (p : parse texpr)
-  (asm : parse $ optional $ tk "with" *> ident): temporal unit :=
-do `(%%Γ ⊢ p_exists %%q) ← target,
-   u ← mk_meta_univ,
-   t ← mk_meta_var (expr.sort u),
-   t ← mk_app `temporal.tvar [t],
-   t' ← to_expr ``(%%t → cpred),
-   (_,p) ← solve_aux t' (do
-     tactic.intro w
-       <* (to_expr p >>= exact)),
-   v ← mk_local_def w t,
-   p' ← head_beta (p v),
-   q' ← head_beta (q v),
-   new_g ← to_expr ``(%%p' ⟶ %%q'),
-   new_g ← to_expr ``(%%Γ ⊢ p_forall %%(new_g.lambdas [v])),
-   h ← assert `h new_g,
-   temporal.interactive.intros [w,asm.get_or_else `_],
-   tactic.swap,
-   mk_app `temporal.simulation.witness_elim [h] >>= exact
-
-run_cmd do
-  let n := `with_witness,
-  env    ← get_env,
-  d_name ← resolve_constant n,
-  (declaration.defn _ ls ty val hints trusted) ← env.get d_name,
-  (name.mk_string h _) ← return d_name,
-  let new_name := `temporal.interactive <.> h,
-  add_decl (declaration.defn new_name ls ty (expr.const d_name (ls.map level.param)) hints trusted)
-
-end witness
-
-
 parameters Γ : cpred
 parameters H : Γ ⊢ SPEC₁ v o
 
@@ -180,7 +110,7 @@ end
 lemma simulation
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  with_witness w : temporal.simulation.Wtn w with Hw,
+  select_witness w : temporal.simulation.Wtn w with Hw,
   have := H, revert this,
   simp only [SPEC₀,SPEC₁],
   apply ctx_p_and_p_imp_p_and',
@@ -321,7 +251,7 @@ parameters {β' γ'}
 section SPEC₂
 variables H : Γ ⊢ SPEC₂ v o sch
 
-open simulation (witness init_in_w C_imp_A_in_w) prod temporal.prod
+open prod temporal.prod
 
 def Next_a :=
 λ σ σ', ∃ e, A e σ σ'
@@ -472,7 +402,7 @@ include H SIM₀ SIM Hpo
 lemma one_to_one
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  with_witness w : temporal.refinement.Wtn w with Hw,
+  select_witness w : temporal.refinement.Wtn w with Hw,
   have this := H, revert this,
   dsimp [SPEC₀,SPEC₁],
   have H' := temporal.refinement.H' , -- o sch,
