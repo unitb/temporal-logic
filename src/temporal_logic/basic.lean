@@ -34,7 +34,7 @@ def tvar := var ℕ
 @[reducible]
 def cpred := tvar Prop
 
-def act (β : Sort u) := β → β → Prop
+abbreviation act (β : Sort u) := β → β → Prop
 
 def action (a : act α) (v : tvar α) : cpred :=
 ⟨ λ i, a (v.apply i) (v.apply $ i.succ) ⟩
@@ -64,29 +64,30 @@ def tl_leads_to (p q : cpred) : cpred :=
 
 infix ` ~> `:55 := tl_leads_to
 
-@[reducible]
-def tl_imp (h p q : cpred) : Prop :=
-ctx_impl (◻ h) p q
 
-lemma tl_imp_intro (h : cpred) {p q : cpred}
-  (h' : ◻h ⟹ (p ⟶ q))
-: tl_imp h p q :=
+class persistent (p : cpred) : Prop :=
+  (is_persistent : ◻p = p)
+export persistent (is_persistent)
+
+lemma tl_imp_intro (h : cpred) [persistent h] {p q : cpred}
+  (h' : h ⟹ (p ⟶ q))
+: ctx_impl h p q :=
 begin
   constructor, intro,
   exact (h' True).apply σ trivial,
 end
 
-lemma tl_imp_elim (h : cpred) {p q : cpred}
-  (h' : tl_imp h p q)
-: ◻h ⟹ (p ⟶ q) :=
+lemma tl_imp_elim (h : cpred) [persistent h] {p q : cpred}
+  (h' : ctx_impl h p q)
+: h ⟹ (p ⟶ q) :=
 begin
   intro, revert Γ,
   apply intro_p_imp h',
 end
 
-lemma tl_imp_intro' (h : cpred) {p q : cpred}
+lemma tl_imp_intro' (h : cpred) [persistent h] {p q : cpred}
   (h' : p ⟹ q)
-: tl_imp h p q :=
+: ctx_impl h p q :=
 h' _
 
 @[simp]
@@ -98,11 +99,15 @@ begin
   { intro, trivial }
 end
 
+instance true_persistent
+: persistent (True : cpred) :=
+by { constructor, simp, }
+
 lemma tl_imp_elim' {p q : cpred}
-  (h : tl_imp True p q)
+  (h : ctx_impl True p q)
 : p ⟹ q :=
 begin
-  simp [tl_imp,ctx_impl] at h,
+  simp [ctx_impl] at h,
   apply h,
 end
 
@@ -151,6 +156,10 @@ by { cases v, cases p, refl }
 
 lemma next_eq_action {p : α → Prop} (v : tvar α)
 : ⊙(p <$> v) = ⟦ v | λ s s' : α, p s' ⟧ :=
+by { cases v, refl }
+
+lemma action_eq {A : act α} (v : tvar α)
+: ⟦ v | A ⟧ = (A : tvar (act α)) v (⊙v) :=
 by { cases v, refl }
 
 lemma next_eq_action' {p : pred' α} (v : tvar α)
@@ -254,10 +263,12 @@ end
 
 @[monotonic]
 lemma eventually_tl_imp_eventually {h p q : cpred}
-  (f : tl_imp h p q)
-: tl_imp h (◇p) (◇q) :=
+  [persistent h]
+  (f : ctx_impl h p q)
+: ctx_impl h (◇p) (◇q) :=
 begin
-  unfold tl_imp ctx_impl at ⊢ f,
+  unfold ctx_impl at ⊢ f,
+  rw ← is_persistent h at *,
   pointwise f with τ h',
   apply exists_imp_exists,
   intro i,
@@ -272,7 +283,7 @@ lemma eventually_entails_eventually {p q : cpred}
 : (◇p) ⟹ (◇q) :=
 begin
   apply tl_imp_elim',
-  monotonicity (tl_imp_intro' _ f),
+  monotonicity (f _),
 end
 
 lemma eventually_imp_eventually {p q : cpred} {Γ}
@@ -287,14 +298,15 @@ end
 
 @[monotonic]
 lemma henceforth_tl_imp_henceforth {h p q : cpred}
-  (f : tl_imp h p q)
-: tl_imp h (◻p) (◻q) :=
+  [persistent h]
+  (f : ctx_impl h p q)
+: ctx_impl h (◻p) (◻q) :=
 begin
-  unfold tl_imp ctx_impl at *,
+  unfold ctx_impl at *,
+  rw ← is_persistent h,
   pointwise f with i h',
   simp [henceforth], intro_mono i,
   apply f ,
-  rw ← henceforth_henceforth at h',
   apply  h',
 end
 

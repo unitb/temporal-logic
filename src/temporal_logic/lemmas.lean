@@ -23,7 +23,6 @@ lemma henceforth_next (p : cpred)
 begin [temporal]
   rw henceforth_next_intro p,
   monotonicity, simp,
-  intros, assumption
 end
 
 lemma next_henceforth (p : cpred)
@@ -98,13 +97,20 @@ begin
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
+@[simp]
 lemma next_or (p q : cpred)
 : ⊙(p ⋁ q) = ⊙p ⋁ ⊙q :=
 rfl
 
+@[simp]
 lemma next_imp (p q : cpred)
 : ⊙(p ⟶ q) = ⊙p ⟶ ⊙q :=
 rfl
+
+@[simp]
+lemma next_proj (f : var α β) (v : tvar α)
+: ⊙(f ! v) = f ! ⊙v :=
+by lifted_pred [next]
 
 open nat
 
@@ -123,13 +129,17 @@ lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
 : ⟦ v | A on f ⟧ = ⟦ ⟨f⟩ ! v | A ⟧ :=
 by { lifted_pred }
 
+lemma action_on'  (A : act α) (v : tvar γ) (f : γ → α)
+: ⟦ v | λ s s', (A on f) s s' ⟧ = ⟦ ⟨f⟩ ! v | A ⟧ :=
+by { lifted_pred }
+
 @[predicate]
 lemma exists_action  (A : γ → act α) (v : tvar α)
 : (∃∃ i, ⟦ v | A i ⟧) = ⟦ v | λ s s', (∃ i, A i s s') ⟧ :=
 by { lifted_pred }
 
 @[simp, predicate]
-lemma models_next (p : cpred) (t : ℕ)
+lemma models_next (p : tvar α) (t : ℕ)
 : t ⊨ ⊙p = succ t ⊨ p :=
 by refl
 
@@ -397,9 +407,12 @@ lemma next_imp_next {p q : cpred} (h : p ⟹ q)
 by { pointwise h with τ, auto }
 
 @[monotonic]
-lemma next_tl_imp_next {Γ p q : cpred} (h : tl_imp Γ p q)
-: tl_imp Γ (⊙ p) (⊙ q) :=
-by { lifted_pred keep [tl_imp],
+lemma next_tl_imp_next {Γ p q : cpred}
+  [persistent Γ]
+  (h : ctx_impl Γ p q)
+: ctx_impl Γ (⊙ p) (⊙ q) :=
+by { rw ← is_persistent Γ at *,
+     lifted_pred keep [tl_imp],
      replace h := h.apply (succ σ),
      apply h, clear h,
      intro i, rw [succ_add, ← add_succ],
@@ -647,6 +660,19 @@ variables Γ : cpred
 variables p q : tvar α
 variables r : tvar β
 variable f : α → β
+variables f₀ f₁ : tvar (α → β)
+
+@[lifted_congr]
+lemma lifted_coe_to_fun_arg
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ f₀ p ≃ f₀ q :=
+by { lifted_pred using h, simp [h] }
+
+@[lifted_congr]
+lemma lifted_coe_to_fun_fun
+  (h : Γ ⊢ f₀ ≃ f₁)
+: Γ ⊢ f₀ p ≃ f₁ p :=
+by { lifted_pred using h, simp [h] }
 
 @[lifted_congr]
 lemma lifted_congr₁
@@ -672,13 +698,15 @@ lemma lifted_proj (v : var α β)
 : Γ ⊢ v ! p ≃ v ! q :=
 by { lifted_pred using h, simp [h] }
 
+variable [persistent Γ]
+
 @[timeless_congr]
 lemma lifted_henceforth (p q : cpred)
-  (h : ◻Γ ⊢ p ≃ q)
-: ◻Γ ⊢ ◻p ≃ ◻q :=
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ ◻p ≃ ◻q :=
 begin
   apply mutual_p_imp
-  ; change tl_imp _ _ _
+  ; change ctx_impl _ _ _
   ; monotonicity
   ; apply p_imp_of_equiv,
   apply h, apply v_eq_symm h
@@ -686,11 +714,11 @@ end
 
 @[timeless_congr]
 lemma lifted_eventually (p q : cpred)
-  (h : ◻Γ ⊢ p ≃ q)
-: ◻Γ ⊢ ◇p ≃ ◇q :=
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ ◇p ≃ ◇q :=
 begin
   apply mutual_p_imp
-  ; change tl_imp _ _ _
+  ; change ctx_impl _ _ _
   ; monotonicity
   ; apply p_imp_of_equiv,
   apply h, apply v_eq_symm h

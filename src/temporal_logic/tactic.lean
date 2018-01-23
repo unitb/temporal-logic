@@ -79,10 +79,16 @@ do x ← try_core x,
      y
    else guarded xs
 
-meta def t_to_expr : pexpr → temporal expr
+meta def check_scope (e : expr) : tactic unit :=
+do mmap' (get_local ∘ expr.local_pp_name) e.list_local_const
+
+meta def type_check_result (msg : format) : tactic unit :=
+result >>= type_check <|> fail msg
+
+meta def t_to_expr' : pexpr → temporal expr
 | e@(expr.app e₀ e₁) :=
    to_expr e <|>
-do e' ← t_to_expr e₀,
+do e' ← t_to_expr' e₀,
    guarded
      [ ( to_expr ``(%%e' : _ ⊢ _ ⟶ _) >>= type_check
        , to_expr ``(p_impl_revert %%e' %%e₁))
@@ -90,8 +96,13 @@ do e' ← t_to_expr e₀,
        , to_expr ``(henceforth_deduction %%e' %%e₁))
      , ( to_expr ``(%%e' : _ ⊢ p_forall _) >>= type_check
        , to_expr ``(p_forall_revert %%e' %%e₁))
-     , (return (), to_expr ``(%%e %%e₁)) ]
+     , (return (), fail "wrong") ]
 | e := to_expr e
+
+meta def t_to_expr (q : pexpr) : temporal expr :=
+do p ← t_to_expr' q <|> to_expr q,
+   check_scope p,
+   return p
 
 meta def t_to_expr_for_apply (q : pexpr) : temporal expr :=
 let aux (n : name) : tactic expr := do
@@ -133,8 +144,7 @@ meta def asm_stmt (Γ e : expr) : temporal (expr × expr × option expr) :=
 do t ← infer_type e,
    val ← get_local_value e,
    `(%%Γ' ⊢ %%p) ← return t | return (e,t,val),
-   ( do is_def_eq Γ Γ',
-        return (e,p,val) ) <|> return (e,t,val)
+   ( do (e,p,val) <$ is_def_eq Γ Γ' ) <|> return (e,t,val)
 
 def compact {α β : Type*} [decidable_eq β] : list (α × β) → list (list α × β)
  | [] := []
@@ -295,14 +305,10 @@ lemma to_antecendent (xs : list (cpred))
 begin
   intro,
   replace h := λ h', judgement_trans Γ _ _ h' h,
-  induction xs with x xs,
+  induction H with x xs,
   { simp at h, simp [with_h_asms,h], },
   { simp at h, simp_intros [with_h_asms],
-    have _inst_2 : persistent x,
-    { apply H, simp, },
-    replace H : Π (q : cpred), q ∈ xs → persistent q,
-    { intros, apply H, right, xassumption, },
-    apply @xs_ih H, intros,
+    apply H_ih , intros,
     apply h,
     rw henceforth_and,
     simp [is_persistent],
@@ -311,6 +317,51 @@ begin
       assumption,
       assumption,
     end }
+end
+
+inductive entails_all {β} (Γ : pred' β) : list (pred' β) → Prop
+ | nil : entails_all []
+ | cons (x : pred' β) (xs : list $ pred' β)
+   : Γ ⊢ x → entails_all xs →
+     entails_all (x :: xs)
+
+lemma entails_all_subst_left {β}
+  (p q : pred' β)
+  (rs : list $ pred' β)
+  (h : p ⟹ q)
+  (h' : entails_all q rs)
+: entails_all p rs :=
+begin
+  induction h'
+  ; constructor,
+  { revert h'_a,
+    apply revert_p_imp' h },
+  { assumption, }
+end
+
+lemma to_antecendent' (xs : list (cpred)) (p : cpred)
+  (ps : list_persistent xs)
+  (h : ∀ Γ [persistent Γ], with_h_asms Γ xs p)
+: ∀ Γ, with_h_asms Γ xs p :=
+begin
+  apply to_antecendent _ ps,
+  have : entails_all (◻list.foldr p_and True xs) xs,
+  { clear h ps,
+    induction xs with x xs ; constructor,
+    { apply indirect_judgement,
+      simp_intros Γ h [henceforth_and],
+      apply henceforth_str x Γ h.left, },
+    { revert xs_ih, apply entails_all_subst_left,
+      simp [henceforth_and] } },
+  specialize h (◻list.foldr p_and True xs),
+  revert this h, generalize : ◻list.foldr p_and True xs = Γ,
+  intros h' h,
+  induction ps with x xs,
+  { simp [with_h_asms] at h,
+    apply h },
+  { xassumption ; cases h', assumption,
+    simp [with_h_asms] at h,
+    auto, }
 end
 
 open tactic tactic.interactive (unfold_coes unfold itactic assert_or_rule)
@@ -325,55 +376,62 @@ do `(_ ⊢ %%t) ← infer_type e | return tt,
    succeeds $
      to_expr ``(persistent %%t) >>= mk_instance
 
-meta def interactive.persistent (excp : parse without_ident_list) : temporal unit :=
-do hs  ← get_assumptions,
-   hs' ← hs.mfilter (map bnot ∘ is_henceforth),
-   excp' ← mmap get_local excp,
-   mmap' tactic.clear (hs'.diff excp')
-
 private meta def mk_type_list (Γ pred_t : expr)  : list expr → temporal (expr × expr)
  | [] := do
    lift₂ prod.mk (to_expr ``(@list.nil cpred))
-                 (to_expr ``(temporal.nil_persistent))
+                 (to_expr ``(temporal.list_persistent.nil_persistent))
  | (x :: xs) :=
    do (es,is) ← mk_type_list xs,
       v  ← mk_meta_var pred_t,
       `(_ ⊢ %%c) ← infer_type x, c' ← pp c,
       ls ← to_expr ``(list.cons %%c %%es),
       inst₀ ← to_expr ``(persistent %%c) >>= mk_instance,
-      inst ← tactic.mk_mapp `temporal.cons_persistent [c,es,inst₀,is],
+      inst ← tactic.mk_mapp `temporal.list_persistent.cons_persistent [c,es,inst₀,is],
       return (ls,inst)
+
+meta def is_context_persistent : temporal bool :=
+do `(%%Γ ⊢ _) ← target | return ff,
+   (tt <$ (to_expr ``(persistent %%Γ) >>= mk_instance)) <|>
+     return ff
+
+meta def create_persistent_context : temporal unit :=
+do b ← is_context_persistent,
+   when (¬ b) $ do
+     asms ← get_assumptions,
+     `(%%Γ ⊢ %%p) ← target >>= instantiate_mvars,
+     pred_t ← infer_type Γ,
+     Γ ← get_local Γ.local_pp_name,
+     r ← tactic.revert_lst (Γ :: asms).reverse,
+     guard (r = asms.length + 1) <|> fail format!"wrong use of context {Γ}",
+     (asms',inst) ← mk_type_list Γ pred_t asms,
+     ts ← mmap consequent asms,
+     hnm ← mk_fresh_name,
+     h ← to_expr  ``(@to_antecendent' %%asms' %%p %%inst) >>= note hnm none,
+     tactic.interactive.simp none tt [simp_arg_type.expr ``(temporal.with_h_asms)] [] (loc.ns [hnm]),
+     h ← get_local hnm,
+     refine ``(%%h _),
+     -- -- `[simp only [temporal.with_h_asms]],
+     intro_lst $ Γ.local_pp_name :: `_ :: asms.map expr.local_pp_name,
+     get_local hnm >>= tactic.clear
+
+meta def interactive.persistent (excp : parse without_ident_list) : temporal unit :=
+do b ← is_context_persistent,
+   when (¬ b) $ do
+     hs  ← get_assumptions,
+     hs' ← hs.mfilter (map bnot ∘ is_henceforth),
+     excp' ← mmap get_local excp,
+     mmap' tactic.clear (hs'.diff excp'),
+     when excp.empty
+       create_persistent_context
 
 meta def persistently (tac : itactic) : temporal unit :=
 focus1 $
-do asms ← get_assumptions,
-   `(%%Γ ⊢ %%p) ← target >>= instantiate_mvars,
-   pred_t ← infer_type Γ,
-   Γ ← get_local Γ.local_pp_name,
-   r ← tactic.revert_lst (Γ :: asms).reverse,
-   guard (r = asms.length + 1) <|> fail format!"wrong use of context {Γ}",
-   (asms',inst) ← mk_type_list Γ pred_t asms,
-   ts ← mmap consequent asms,
-   h ← to_expr  ``(@to_antecendent %%asms' %%inst %%p) >>= note `h none,
-   `[simp only [temporal.with_h_asms] at h],
-   h ← get_local `h,
-   refine ``(%%h _),
-   get_local `h >>= tactic.clear,
+do create_persistent_context,
       -- calling tac
    x ← focus1 tac,
       -- restore context to Γ
    done <|> (do
-     to_expr ```(_ ⊢ _) >>= change,
-     `(_ ⊢ %%q) ← target,
-     refine ``(from_antecendent %%asms' %%q _),
-     `[simp only [temporal.with_h_asms]],
-     Γ ← tactic.intro Γ.local_pp_name,
-     mmap₂ (λ l t : expr, do
-       let n := l.local_pp_name,
-       tactic.intro n,
-       tactic.interactive.change ``(%%Γ ⊢ %%t) none (loc.ns [some n]))
-         asms ts,
-     return x)
+     to_expr ```(_ ⊢ _) >>= change)
    <|> (do
      to_expr ```(⊩ _) >>= change,
      `(⊩ %%q) ← target,
@@ -392,18 +450,19 @@ def with_asms {β} (Γ : pred' β) : Π (xs : list (pred' β)) (x : pred' β), P
  | [] x := Γ ⊢ x
  | (x :: xs) y := Γ ⊢ x → with_asms xs y
 
-lemma p_imp_intro_asms_aux {β} (ps : list (pred' β)) (φ q r : pred' β)
+lemma p_imp_intro_asms_aux {β} (ps : list (pred' β))
+  (φ q r : pred' β)
   (h : ∀ Γ, Γ ⊢ φ → with_asms Γ (ps ++ [q]) r)
   (Γ : pred' β)
-  (h' : Γ ⊢ φ)
+  (h' : Γ ⊢ φ )
 : with_asms Γ ps (q ⟶ r) :=
 begin
   revert φ,
   induction ps ; introv h h',
   case list.nil
   { simp [with_asms] at h ⊢,
-    apply p_imp_intro φ,
-    { introv h₀, apply h, auto },
+    apply p_imp_intro _,
+    { introv h₀, apply h _ , exact h₀, },
     auto, },
   case list.cons : p ps
   { simp [with_asms] at h ⊢,
@@ -443,8 +502,11 @@ do to_expr ``(_ ⊢ _ ⟶ _) >>= change <|>
    match g with
     | `(%%Γ ⊢ %%p ⟶ %%q)  := do
       ls ← get_assumptions,
+      try (to_expr ``(persistent %%Γ) >>= mk_instance >>= clear),
       r ← revert_lst (Γ :: ls).reverse,
-      guard (r = ls.length + 1) <|> fail format!"wrong use of context {Γ}: {r} ≠ {ls.length + 1}",
+      let k := ls.length + 1,
+      guard (r = k)
+            <|> fail format!"wrong use of context {Γ}: {r} ≠ {k}",
       ls' ← mk_type_list ls,
       h ← to_expr  ``(p_imp_intro_asms %%ls' %%p %%q) >>= note `h none,
       tactic.interactive.unfold [`temporal.with_asms,`has_append.append,`list.append] (loc.ns [`h]),
@@ -545,11 +607,32 @@ do let (x,y) := if cfg.symm then (y',x')
    else do
      h ← if cfg.symm then to_expr ``(v_eq_symm %%h')
                      else return h',
-     repeat apply_lifted_congr,
-     exact h),
+     repeat (() <$ apply h <|> apply_lifted_congr),
+     done),
    prf' ← to_expr ``(judgement_congr %%prf),
    new_t ← to_expr ``(%%Γ ⊢ %%t'),
    return (new_t,prf',[])
+
+meta def tmp_head : expr → temporal expr | e :=
+do t ← infer_type e >>= whnf,
+   match t with
+     | (expr.pi v bi e₀ e₁) :=
+       do v ← mk_meta_var e₀,
+          tmp_head (e v)
+     | `(_ ⊢ _) :=
+       do v ← mk_mvar,
+          t_to_expr ``(%%e %%v) >>= tmp_head <|> return e
+     | _ := return e
+   end
+
+-- this is to justify using `whnf` before pattern matching when dealing w
+-- with sequents
+run_cmd do
+v₀ ← mk_local_def `v `(cpred),
+e ← to_expr ``(%%v₀ ⊢ %%v₀ ⟶ %%v₀),
+e' ← whnf e,
+guard (e' = e) <|> fail "_ ⊢ _ ⟶ _ does not reduce to itself"
+
 /--
  Must distinguish between three cases on the shape of assumptions:
  h : Γ ⊢ ◽(x ≡ y)
@@ -569,10 +652,11 @@ do let (x,y) := if cfg.symm then (y',x')
  h : ⊩ ◽(x ≡ y) ⟶ f x ≡ f y
  -/
 meta def rewrite_tmp (Γ h : expr) (e : expr) (cfg : rewrite_cfg := {}) : tactic (expr × expr × list expr) :=
-do e ← whnf e,
+do e ← instantiate_mvars e >>= whnf,
    match e with
     | e'@`(%%Γt ⊢ %%e) :=
-    do ht ← infer_type h >>= whnf,
+    do h ← tmp_head h,
+       ht ← infer_type h >>= whnf,
        match ht with
          | `(%%Γr ⊢ ◻%%p) :=
            do `(%%x ≃ %%y) ← force ``(_ ≃ _) p,
@@ -716,7 +800,11 @@ do `(%%Γ ⊢ _) ← target,
    try $ tactic.interactive.simp none ff
        (map simp_arg_type.expr [``(function.comp),``(temporal.init)]) []
        (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
-   done <|> solve1 (tactic.clear hΓ >> tactic.clear Γ >> tac)
+   done <|> solve1 (do
+     tactic.clear hΓ,
+     try (to_expr ``(temporal.persistent %%Γ) >>= mk_instance >>= tactic.clear),
+     tactic.clear Γ,
+     tac)
 
 meta def same_type (e₀ e₁ : expr) : temporal unit :=
 do t₀ ← infer_type e₀,
@@ -839,6 +927,41 @@ do p' ← to_expr e.2,
     | _ := do q ← pp q, fail format!"case expression undefined on {q}"
    end
 
+private meta def cases_core (p : expr) : tactic unit :=
+() <$ cases (none,to_pexpr p) []
+
+private meta def find_matching_hyp (ps : list pattern) : tactic expr :=
+any_hyp $ λ h, do
+  type ← infer_type h,
+  ps.mfirst $ λ p, do
+  match_pattern p type,
+  return h
+
+meta def rename' (curr : expr) (new : name) : tactic unit :=
+do n ← tactic.revert curr,
+   tactic.intro new,
+   tactic.intron (n - 1)
+
+meta def select (h : parse $ ident <* tk ":") (p : parse texpr) : temporal unit :=
+do `(%%Γ ⊢ _) ← target,
+   p₀ ← pexpr_to_pattern ``(%%Γ ⊢ %%p),
+   p₁ ← pexpr_to_pattern p,
+   any_hyp (λ h', infer_type h' >>= match_pattern p₀ >> rename' h' h)
+     <|> any_hyp (λ h', infer_type h' >>= match_pattern p₁ >> rename' h' h)
+
+meta def cases_matching (rec : parse $ (tk "*")?) (ps : parse pexpr_list_or_texpr) : temporal unit :=
+do `(%%Γ ⊢ _) ← target,
+   ps ← lift₂ (++) (ps.mmap pexpr_to_pattern)
+                   (ps.mmap $ λ p, pexpr_to_pattern ``(%%Γ ⊢ %%p)),
+   if rec.is_none
+   then find_matching_hyp ps >>= cases_core
+   else tactic.focus1 $ tactic.repeat $ find_matching_hyp ps >>= cases_core
+
+/-- Shorthand for `cases_matching` -/
+meta def casesm (rec : parse $ (tk "*")?) (ps : parse pexpr_list_or_texpr) : temporal unit :=
+cases_matching rec ps
+
+
 -- meta def rcases (e : parse cases_arg_p)
 --   (ids : parse (tk "with" *> rcases_parse)?)
 -- : temporal unit :=
@@ -898,9 +1021,14 @@ do x ← focus_right' ids.opt_head,
      get_local x.local_pp_name >>= temporal.revert,
      `[rw [p_not_p_imp]])
 
-meta def split : temporal unit :=
-do `(%%Γ ⊢ %%p ⋀ %%q) ← target,
-   apply ``(p_and_intro %%p %%q %%Γ _ _)
+meta def split (rec : parse $ (tk "*")?) : temporal unit :=
+if rec.is_some then
+  focus1 $ repeat $ do
+    `(%%Γ ⊢ %%p ⋀ %%q) ← target,
+    apply ``(p_and_intro %%p %%q %%Γ _ _)
+else do
+  `(%%Γ ⊢ %%p ⋀ %%q) ← target,
+  apply ``(p_and_intro %%p %%q %%Γ _ _)
 
 meta def existsi : parse pexpr_list_or_texpr → parse with_ident_list → temporal unit
 | []      _ := return ()
@@ -994,6 +1122,12 @@ do `(%%Γ ⊢ %%p ⋁ %%q) ← target,
 meta def auto : temporal unit :=
 assumption ; assumption ; assumption ; done
 
+meta def tauto : temporal unit :=
+() <$ intros [] ;
+casesm (some ()) [``(_ ⋀ _),``(_ ⋀ _)] ;
+split (some ()) ;
+auto
+
 meta def specialize (h : parse texpr) : temporal unit :=
 tactic.interactive.specialize h
 
@@ -1085,22 +1219,13 @@ meta def interactive.henceforth (l : parse location) : temporal unit :=
 do when l.include_goal $
      persistently (do
        refine ``(persistent_to_henceforth _)),
-   match l with
-    | loc.wildcard := l.try_apply
+   soft_apply l
          (λ h, do b ← is_henceforth h,
                   when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
                   to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
                     >>= note h.local_pp_name none,
                   tactic.clear h)
          (pure ())
-    | _ := l.apply
-         (λ h, do b ← is_henceforth h,
-                  when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
-                  to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
-                    >>= note h.local_pp_name none,
-                  tactic.clear h)
-         (pure ())
-  end
 
 meta def monotonicity1 (only_pers : parse only_flag) : temporal unit :=
 do ex ← (if ¬ only_pers then do
@@ -1109,9 +1234,11 @@ do ex ← (if ¬ only_pers then do
    else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
-          to_expr ``(tl_imp _ _ _) >>= change,
+          to_expr ``(ctx_impl _ _ _) >>= change,
           tactic.interactive.monotonicity1
-   else tactic.interactive.monotonicity1
+   else do
+     to_expr ``(ctx_impl _ _ _) >>= change,
+     tactic.interactive.monotonicity1
 
 meta def monotonicity_n (n : ℕ) (only_pers : parse only_flag) : temporal unit  :=
 do ex ← (if ¬ only_pers then do
@@ -1120,20 +1247,25 @@ do ex ← (if ¬ only_pers then do
    else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
-          to_expr ``(tl_imp _ _ _) >>= change,
+          to_expr ``(ctx_impl _ _ _) >>= change,
           tactic.iterate_exactly n tactic.interactive.monotonicity1
-   else tactic.interactive.monotonicity1
+   else do
+     to_expr ``(ctx_impl _ _ _) >>= change,
+     tactic.iterate_exactly n tactic.interactive.monotonicity1
 
-meta def monotonicity (only_pers : parse only_flag) (e : parse assert_or_rule?) : temporal unit :=
+meta def monotonicity (only_pers : parse only_flag)
+  (e : parse assert_or_rule?) : temporal unit :=
 do ex ← (if ¬ only_pers then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
    else tt <$ interactive.persistent []),
    if ex
    then persistently $ do
-          to_expr ``(tl_imp _ _ _) >>= change,
+          to_expr ``(ctx_impl _ _ _) >>= change,
           tactic.interactive.monotonicity e
-   else tactic.interactive.monotonicity e
+   else do
+     to_expr ``(ctx_impl _ _ _) >>= change,
+     tactic.interactive.monotonicity e
 
 meta def interactive.apply_mono (f e : parse ident) : temporal unit :=
 do get_local e >>= temporal.revert,
@@ -1142,7 +1274,7 @@ do get_local e >>= temporal.revert,
    if b then do
      interactive.persistent [],
      persistently  $ do
-          to_expr ``(tl_imp _ _ _) >>= change,
+          to_expr ``(ctx_impl _ _ _) >>= change,
           tactic.interactive.monotonicity (some $ sum.inl ``(%%f))
    else tactic.interactive.monotonicity (some $ sum.inl ``(%%f))
 

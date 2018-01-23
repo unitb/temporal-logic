@@ -53,6 +53,10 @@ lemma map_left_proj_pair (f : α' → γ')
 : ⟨map_left f⟩ ! ⦃y,x⦄ = ⦃y, ⟨f⟩ ! x⦄ :=
 by ext i ; simp [map_left]
 
+@[simp]
+lemma next_pair (v₀ : tvar α') (v₁ : tvar β')
+: ⊙⦃v₀,v₁⦄ = ⦃⊙v₀,⊙v₁⦄ :=
+by lifted_pred [next]
 end pair
 
 end temporal
