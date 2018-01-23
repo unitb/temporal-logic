@@ -60,7 +60,8 @@ before_install:
 - |
    if [[ $LATEST == true ]]
    then
-     git pull origin master
+     curl https://leanprover.github.io/lean-nightly/build/lean-nightly-linux.tar.gz | tar xz -C ..
+     export PATH=../lean-nightly-linux/bin:$PATH
    else
      git checkout 368f17d0b1392a5a72c9eb974f15b14462cc1475
    fi
