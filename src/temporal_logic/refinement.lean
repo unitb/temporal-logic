@@ -265,7 +265,8 @@ def Next_c : act $ γ' × evt × β' :=
 
 section J
 def J' : pred' (γ' × (evt × α') × (evt × β')) :=
-J ! ⟨ prod.map_right $ prod.map prod.snd prod.snd ⟩
+J ! ⟨ prod.map_right $ prod.map prod.snd prod.snd ⟩ ⋀
+⟨ λ ⟨_, a, c⟩, a.1 = c.1 ⟩
 
 def p' : pred' (γ' × evt × α') :=
 p ! ⟨prod.map_right prod.snd⟩
@@ -301,7 +302,8 @@ begin
   simp [q',prod.map_left] at h,
   specialize SIM₀ v.2 o h,
   revert SIM₀, intros_mono,
-  simp [J',p',map], intros, split,
+  simp [J',p',map], intros,
+  constructor_matching* [Exists _, _ ∧ _] ;
   tauto,
 end
 
@@ -311,22 +313,84 @@ lemma SIM' (w : evt × α') (v : evt × β') (o : γ') (v' : evt × β') (o' : �
   (h₀ : (o, w, v) ⊨ J')
   (h₁ : Next_c (o, v) (o', v'))
 : (∃ w', Next_a (o,w) (o',w') ∧ (o', w', v') ⊨ J') :=
-sorry
+begin
+  simp [J',map] at h₀,
+  simp [Next_c,on_fun] at h₁,
+  cases h₀,
+  specialize SIM w.2 v.2 o v'.2 o' v.1 h₀_left h₁,
+  cases SIM with w' SIM,
+  existsi [(v'.1,w')],
+  simp [Next_a, J',on_fun,map,h₀_right],
+  exact SIM,
+end
 
 include H
 omit SIM
 lemma H'
 : Γ ⊢ simulation.SPEC₁ q' Next_c ⦃v,sch⦄ o :=
-sorry
+begin [temporal]
+  simp [SPEC₂,simulation.SPEC₁,q'] at H ⊢,
+  split, tauto,
+  casesm* _ ⋀ _,
+  persistent,
+  select h : ◻p_exists _,
+  henceforth at h ⊢,
+  cases h with e h,
+  explicit
+  { simp [Next_c,on_fun,map_right] at a ⊢ h,
+    cases h, subst e, auto },
+end
 
+include SIM₀ SIM
 lemma witness_imp_SPEC₀_saf
   (h : Γ ⊢ Wtn ⦃w,sch⦄)
 : Γ ⊢ SPEC₀.saf w o :=
-sorry
+begin [temporal]
+  have hJ := J_inv_in_w p' q'
+                        temporal.one_to_one.Next_a temporal.one_to_one.Next_c
+                        temporal.one_to_one.J'
+                        temporal.one_to_one.SIM₀'
+                        temporal.one_to_one.SIM'
+                        ⦃v,sch⦄ o Γ
+                        (temporal.one_to_one.H' _ H) _ h,
+  simp [SPEC₀.saf,SPEC₂,Wtn,simulation.Wtn] at h ⊢ H,
+  casesm* _ ⋀ _,
+  split,
+  { clear SIM hJ,
+    select h : ⦃w,sch⦄ ≃ _,
+    select h' : q ! _,
+    rw [← pair.snd_mk sch w,h],
+    explicit
+    { simp [Wx₀] at ⊢ h', unfold_coes,
+      simp [Wx₀_f,p',J',map],
+      cases SIM₀ (σ ⊨ v) (σ ⊨ o) h',
+      apply_epsilon_spec,
+      existsi (σ ⊨ sch,w_1), tauto, } },
+  { clear SIM₀,
+    select h : ◻(_ ≃ _),
+    select h' : ◻(p_exists _),
+    persistent,
+    henceforth at h h' ⊢ hJ,
+    explicit
+    { existsi σ ⊨ sch,
+      simp at ⊢ h,
+      repeat
+      { unfold_coes at h <|>
+        simp [Wf,Wf_f,J',map] at h hJ },
+      replace h := congr_arg snd h,
+      simp at h h',
+      simp [Next_a,on_fun,map_right] at h,
+      rw [h], clear h,
+      apply_epsilon_spec,
+      specialize SIM (σ ⊨ w) (σ ⊨ v) (σ ⊨ o)
+                 (succ σ ⊨ v) (succ σ ⊨ o) (σ ⊨ sch)
+                 hJ h',
+      cases SIM, existsi (succ σ ⊨ sch,SIM_w), tauto, } },
+end
 
 omit H
 parameters p q cs₁ fs₁
-include Hpo p SIM₀ SIM
+include Hpo p
 
 lemma SPEC₂_imp_SPEC₁
 : (SPEC₂ v o sch) ⟹ (SPEC₁ v o) :=
@@ -421,7 +485,7 @@ begin [temporal]
   { replace SIM₀ := SIM₀' _ SIM₀,
     replace SIM := SIM' A C J SIM,
     apply simulation.J_inv_in_w p' q' (Next_a A) _ (J' J) SIM₀ SIM _ o _ H' w Hw },
-  simp [J'] at hJ,
+  simp [J'] at hJ, cases hJ with hJ,
   have Hpo' := Hpo' p q A C cs₁ fs₁ J _ _ _ o sch Hpo (pair.snd ! w) i ; try { auto },
   apply replacement Hpo' Γ _ _,
   clear Hpo Hpo' SIM SIM₀,

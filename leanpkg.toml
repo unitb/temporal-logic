@@ -5,5 +5,5 @@ lean_version = "master"
 path = "src"
 
 [dependencies]
-lean-lib = {git = "https://github.com/unitb/lean-lib", rev = "8ef81ef1252385e35bbadcaa6c55a3241bcd965c"}
-mathlib = {git = "https://github.com/leanprover/mathlib", rev = "acb9093feb56870cdb4f2473ab20303a6c383634"}
+lean-lib = {git = "https://github.com/unitb/lean-lib", rev = "77d8281c63aa90e713ecffc1ca8f158ac7cd58e9"}
+mathlib = {git = "https://github.com/leanprover/mathlib", rev = "7fba1afab85765fde363aed39525b5ff1bb74b66"}

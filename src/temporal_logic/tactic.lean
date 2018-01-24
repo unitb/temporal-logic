@@ -901,26 +901,43 @@ do t ← infer_type p,
     | _ := return none
    end
 
+meta def break_conj (Γ p p' a b : expr) (ids : list name) : temporal unit :=
+do  let h₀ : name := (ids.nth 0).get_or_else `a,
+    let h₁ : name := (ids.nth 1).get_or_else `a,
+    to_expr ``(p_and_elim_left %%a %%b %%Γ %%p') >>= note h₀ none,
+    to_expr ``(p_and_elim_right %%a %%b %%Γ %%p') >>= note h₁ none,
+    when p.is_local_constant (tactic.clear p)
+
+meta def break_disj (Γ p p' a b : expr) (ids : list name) : temporal unit :=
+do let h₀ : name := (ids.nth 0).get_or_else `a,
+   let h₁ : name := (ids.nth 1).get_or_else `a,
+   g ← target,
+   note `h none p,
+   revert [`h],
+   when p'.is_local_constant (tactic.clear p'),
+   apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
+   ; [ intros [h₀] , intros [h₁] ],
+   tactic.swap
+#check congr_arg
 meta def cases (e : parse cases_arg_p) (ids : parse with_ident_list) : temporal unit :=
 do p' ← to_expr e.2,
    (some (Γ,p,q)) ← sequent_type p' | tactic.interactive.cases e ids,
    match q with
+    | `(◻(%%a ⋀ %%b)) := do
+      p₁ ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (henceforth_and %%a %%b)) %%p),
+      a ← to_expr ``(◻%%a),
+      b ← to_expr ``(◻%%b),
+      -- p' ← mk_app `eq.mp [p₀,p],
+      break_conj Γ p' p₁ a b ids
     | `(%%a ⋀ %%b) := do
-      let h₀ : name := (ids.nth 0).get_or_else `a,
-      let h₁ : name := (ids.nth 1).get_or_else `a,
-      to_expr ``(p_and_elim_left %%a %%b %%Γ %%p) >>= note h₀ none,
-      to_expr ``(p_and_elim_right %%a %%b %%Γ %%p) >>= note h₁ none,
-      when p'.is_local_constant (tactic.clear p')
+      break_conj Γ p p a b ids
     | `(%%a ⋁ %%b) := do
-      let h₀ : name := (ids.nth 0).get_or_else `a,
-      let h₁ : name := (ids.nth 1).get_or_else `a,
-      g ← target,
-      note `h none p,
-      revert [`h],
-      when p'.is_local_constant (tactic.clear p'),
-      apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
-      ; [ intros [h₀] , intros [h₁] ],
-      tactic.swap
+      break_disj Γ p p a b ids
+    | `(◇(%%a ⋁ %%b)) := do
+      p' ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (eventually_or %%a %%b)) %%p),
+      a ← to_expr ``(◇%%a),
+      b ← to_expr ``(◇%%b),
+      break_disj Γ p p' a b ids
     | `(∃∃ x : %%t, %%e') := do
       let h₀ : name := (ids.nth 0).get_or_else `a,
       let h₁ : name := (ids.nth 1).get_or_else `a,
