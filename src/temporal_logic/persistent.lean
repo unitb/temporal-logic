@@ -15,8 +15,8 @@ export postponable (postpone)
 instance henceforth_persistent {p : cpred} : persistent (◻p) :=
 by { constructor, simp }
 
-instance not_eventually_persistent {p : cpred} : persistent (-◇p) :=
-by { constructor, simp }
+instance persistent_not {p : cpred} [postponable p] : persistent (-p) :=
+by { constructor, rw [← not_eventually, postpone p] }
 
 instance leads_to_persistent {p q : cpred} : persistent (p ~> q) :=
 by { constructor, simp [tl_leads_to,is_persistent] }
@@ -37,9 +37,6 @@ instance forall_persistent {p : α → cpred} [∀ i, persistent (p i)]
 : persistent (p_forall p) :=
 by { constructor, simp [henceforth_forall,is_persistent], }
 
-instance not_exists_persistent {p : α → cpred} [∀ i, persistent (- p i)]
-: persistent (- p_exists p) :=
-by { constructor, simp [p_not_p_exists,henceforth_forall,is_persistent], }
 
 instance exists_persistent {p : α → cpred} [∀ i, persistent (p i)]
 : persistent (p_exists p) :=
@@ -48,9 +45,44 @@ by { constructor, apply mutual_entails,
      apply p_exists_elim, intro, rw ← is_persistent (p x),
      monotonicity, apply p_exists_intro, }
 
-instance not_forall_persistent {p : α → cpred} [∀ i, persistent (- p i)]
-: persistent (- p_forall p) :=
-by { constructor, simp [p_not_p_forall], apply is_persistent }
+instance (p : cpred) : postponable (◇p) :=
+by { constructor, simp [eventually_eventually] }
+
+instance postponable_not {p : cpred} [persistent p] : postponable (-p) :=
+by { constructor, rw [← not_henceforth, is_persistent p] }
+
+instance or_postponable {p q : cpred} [postponable p] [postponable q]
+: postponable (p ⋁ q) :=
+by { constructor, simp [eventually_or,postpone], }
+
+instance imp_postponable {p q : cpred} [persistent p] [postponable q]
+: postponable (p ⟶ q) :=
+by { simp [p_imp_iff_p_not_p_or], apply_instance }
+
+instance coe_postponable (p : Prop)
+: postponable (p : cpred) :=
+by { constructor, cases classical.prop_complete p ; subst p ; simp, }
+
+instance forall_postponable (p : α → cpred) [∀ i, postponable (p i)]
+: postponable (p_forall p) :=
+⟨ begin
+    apply mutual_entails,
+    { rw [p_entails_of_fun],
+      introv h, rw p_forall_to_fun, intro i,
+      rw ← postpone (p i), revert h, apply p_impl_revert,
+      revert Γ, change (_ ⟹ _),
+      monotonicity, rw [p_entails_of_fun],
+      introv h, apply p_forall_revert h },
+    apply eventually_weaken
+  end ⟩
+
+instance exists_postponable (p : α → cpred) [∀ i, postponable (p i)]
+: postponable (p_exists p) :=
+by constructor ; simp [eventually_exists,postpone]
+
+-- instance not_forall_persistent {p : α → cpred} [∀ i, persistent (- p i)]
+-- : persistent (- p_forall p) :=
+-- by { constructor, simp [p_not_p_forall], apply is_persistent }
 
 inductive list_persistent : list cpred → Prop
  | nil_persistent : list_persistent []
@@ -85,26 +117,6 @@ begin
   rw ← postpone q,
   monotonicity h,
 end
-
-instance (p : cpred) : postponable (◇p) :=
-by { constructor, simp [eventually_eventually] }
-
-instance forall_postponable (p : α → cpred) [∀ i, postponable (p i)]
-: postponable (p_forall p) :=
-⟨ begin
-    apply mutual_entails,
-    { rw [p_entails_of_fun],
-      introv h, rw p_forall_to_fun, intro i,
-      rw ← postpone (p i), revert h, apply p_impl_revert,
-      revert Γ, change (_ ⟹ _),
-      monotonicity, rw [p_entails_of_fun],
-      introv h, apply p_forall_revert h },
-    apply eventually_weaken
-  end ⟩
-
-instance exists_postponable (p : α → cpred) [∀ i, postponable (p i)]
-: postponable (p_exists p) :=
-by constructor ; simp [eventually_exists,postpone]
 
 lemma persistent_to_henceforth {p q : cpred}
   [persistent p]

@@ -91,13 +91,6 @@ begin [temporal]
 end
 
 @[simp]
-lemma not_henceforth (p : cpred) : (- ◻p) = (◇-p) :=
-begin
-  ext1,
-  simp [henceforth,not_forall_iff_exists_not,eventually],
-end
-
-@[simp]
 lemma next_or (p q : cpred)
 : ⊙(p ⋁ q) = ⊙p ⋁ ⊙q :=
 rfl
@@ -143,13 +136,6 @@ lemma models_next (p : tvar α) (t : ℕ)
 : t ⊨ ⊙p = succ t ⊨ p :=
 by refl
 
-lemma eventually_p_or (p q : cpred)
-: ◇(p ⋁ q) = ◇p ⋁ ◇q :=
-begin
-  ext1,
-  simp [eventually,exists_or],
-end
-
 lemma induct (p Γ : cpred)
   (h : Γ ⊢ ◻ (p ⟶ ⊙p))
 : Γ ⊢ (p ⟶ ◻p) :=
@@ -183,7 +169,7 @@ begin
 end
 
 instance imp_persistent {p q : cpred}
-  [persistent $ - p]
+  [postponable p]
   [persistent q]
 : persistent (p ⟶ q) :=
 by { simp [p_imp_iff_p_not_p_or], apply_instance }
@@ -203,9 +189,20 @@ begin
   end
 end
 
-instance not_inf_often_persistent {p : cpred}
-: persistent (- ◻◇p) :=
-by { simp, apply_instance }
+instance and_postponable {p q : cpred}
+  [postponable p]
+  [postponable q]
+: postponable (p ⋀ q) :=
+by { constructor, rw ← p_not_eq_p_not_iff_eq,
+     simp [p_not_p_and,is_persistent], }
+
+instance inf_often_postponable {p : cpred}
+: postponable (◻ ◇ p) :=
+begin
+  constructor,
+  rw ← p_not_eq_p_not_iff_eq,
+  simp [is_persistent],
+end
 
 lemma induct' (p : cpred) {Γ}
   (h : Γ ⊢ ◻ (p ⟶ ⊙p))
@@ -360,9 +357,6 @@ begin [temporal]
 end
 (eventually_weaken _)
 
-instance inf_often_postponable (p : cpred) : postponable (◻◇p) :=
-by constructor ; simp [eventually_inf_often]
-
 lemma coincidence {p q : cpred} {Γ}
     (Hp : Γ ⊢ ◇◻p)
     (Hq : Γ ⊢ ◻◇q)
@@ -477,7 +471,7 @@ begin [temporal]
   intros h,
   have := P₀ h, clear h,
   eventually this,
-  rw [eventually_p_or],
+  rw [eventually_or],
   cases this with h h,
   { left, apply P₁ h },
   { right, assumption },

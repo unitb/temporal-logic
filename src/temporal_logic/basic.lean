@@ -349,12 +349,26 @@ begin
   { apply a.right },
 end
 
+lemma eventually_or (p q : cpred)
+: ◇(p ⋁ q) = ◇p ⋁ ◇q :=
+begin
+  ext1,
+  simp [eventually,exists_or],
+end
+
 lemma henceforth_forall (P : α → cpred)
 : ◻(∀∀ x, P x) = ∀∀ x, ◻P x :=
 begin
   ext1,
   simp [henceforth,p_forall],
   rw forall_swap,
+end
+
+@[simp]
+lemma not_henceforth (p : cpred) : (- ◻p) = (◇-p) :=
+begin
+  ext1,
+  simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
 @[simp]
