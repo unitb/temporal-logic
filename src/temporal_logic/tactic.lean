@@ -205,7 +205,7 @@ meta def uniform_assumptions' (Γ : expr)
                                <*> to_expr ``( p_forall %%abs )),
          return p
     | `(%%Γ' ⊢ %%p) := (is_def_eq Γ Γ' >> some (h,p) <$ guard (¬ Γ.occurs p))
-    | p := guard (¬ Γ.occurs p) >> pure none
+    | p := none <$ guard (¬ Γ.occurs p) <|> none <$ match_expr ``(persistent %%Γ) p
    end
 
 meta def protect_tags {α : Sort*} (tac : temporal α) : temporal α :=
@@ -592,22 +592,25 @@ do let (x,y) := if cfg.symm then (y',x')
    ctx ← match_context (to_pexpr x) t <|> fail format!"no instance of {err} found",
    let t' := ctx y,
    p ← to_expr ``(%%Γ ⊢ %%t ≃ %%t'),
-   ((),prf) ← solve_aux p (
+   ((),prf) ← solve_aux p (do
    if hence then do
      h ← if cfg.symm then to_expr ``(v_eq_symm_h %%h')
                      else return h',
      h' ← mk_fresh_name,
      note h' none h,
      interactive.persistent [],
-     persistently (repeat apply_timeless_congr),
      h ← get_local h',
      `(%%Γ ⊢ _) ← target,
-     rule ← to_expr ``(p_impl_revert (henceforth_str (%%x ≃ %%y) %%Γ) %%h),
-     exact rule
+     rule ← to_expr ``(henceforth_str (%%x ≃ %%y) %%Γ),
+     rule ← mk_mapp `predicate.p_impl_revert [none,Γ,none,none,rule,h],
+     repeat (() <$ apply rule <|> refine ``(v_eq_refl _ _) <|> apply_timeless_congr),
+     all_goals $
+       exact rule,
+     return ()
    else do
      h ← if cfg.symm then to_expr ``(v_eq_symm %%h')
                      else return h',
-     repeat (() <$ apply h <|> apply_lifted_congr),
+     repeat (() <$ apply h <|> refine ``(v_eq_refl _ _) <|> apply_lifted_congr),
      done),
    prf' ← to_expr ``(judgement_congr %%prf),
    new_t ← to_expr ``(%%Γ ⊢ %%t'),
@@ -663,7 +666,8 @@ do e ← instantiate_mvars e >>= whnf,
               temporal_eq_proof Γ h x y e tt cfg
          | `(%%Γr ⊢ %%p) :=
            do `(%%x ≃ %%y) ← force ``(_ ≃ _) p,
-              temporal_eq_proof Γ h x y e ff cfg
+              b ← try_core $ to_expr ``(persistent %%Γr) >>= mk_instance,
+              temporal_eq_proof Γ h x y e b.is_some cfg
          | _ :=
            do (new_t, prf, metas) ← rewrite_core h e cfg,
               prf' ← to_expr ``(congr_arg (judgement %%Γt) %%prf),

@@ -652,7 +652,7 @@ attribute [irreducible] next
 section
 variables Γ : cpred
 variables p q : tvar α
-variables r : tvar β
+variables p' q' : tvar β
 variable f : α → β
 variables f₀ f₁ : tvar (α → β)
 
@@ -675,16 +675,11 @@ lemma lifted_congr₁
 by { lifted_pred using h, simp [h] }
 
 @[lifted_congr]
-lemma lifted_congr₂_a (g : α → β → γ)
+lemma lifted_congr₂ (g : α → β → γ)
   (h : Γ ⊢ p ≃ q)
-: Γ ⊢ lifted₂ g p r ≃ lifted₂ g q r :=
-by { lifted_pred using h, simp [h] }
-
-@[lifted_congr]
-lemma lifted_congr₂_b (g : β → α → γ)
-  (h : Γ ⊢ p ≃ q)
-: Γ ⊢ lifted₂ g r p ≃ lifted₂ g r q :=
-by { lifted_pred using h, simp [h] }
+  (h' : Γ ⊢ p' ≃ q')
+: Γ ⊢ lifted₂ g p p' ≃ lifted₂ g q q' :=
+by { lifted_pred using h h', simp [h,h'] }
 
 @[lifted_congr]
 lemma lifted_proj (v : var α β)
@@ -693,6 +688,17 @@ lemma lifted_proj (v : var α β)
 by { lifted_pred using h, simp [h] }
 
 variable [persistent Γ]
+
+@[timeless_congr]
+lemma lifted_next (p q : tvar α)
+  (h : Γ ⊢ p ≃ q)
+: Γ ⊢ ⊙p ≃ ⊙q :=
+begin
+  lifted_pred keep,
+  rw ← is_persistent Γ at a,
+  have := h.apply (succ x) (a 1),
+  simp at this, exact this,
+end
 
 @[timeless_congr]
 lemma lifted_henceforth (p q : cpred)

@@ -3,6 +3,8 @@ import temporal_logic.fairness
 import temporal_logic.pair
 import temporal_logic.lemmas
 
+import util.meta.tactic
+
 universe variables u u₀ u₁ u₂
 open predicate nat
 
@@ -14,28 +16,28 @@ namespace simulation
 section
 
 parameters {α' : Type u} {β' : Type u₀} {γ' : Type u₁ }
-parameters (p : pred' (α'×γ')) (q : pred' (β'×γ'))
-parameters (A : act (α'×γ')) (C : act (β'×γ'))
-parameters (J : pred' (α'×β'×γ'))
+parameters (p : pred' (γ'×α')) (q : pred' (γ'×β'))
+parameters (A : act (γ'×α')) (C : act (γ'×β'))
+parameters (J : pred' (γ'×α'×β'))
 
 variables (x : tvar α') (y : tvar β') (z : tvar γ')
 
 def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
-p ! ⦃ o,v ⦄ ⋀
-◻⟦ v,o | A ⟧
+p ! ⦃ v,o ⦄ ⋀
+◻⟦ o,v | A ⟧
 
 def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻⟦ v,o | C ⟧
+q ! ⦃ v,o ⦄ ⋀
+◻⟦ o,v | C ⟧
 
 parameters [inhabited α']
-parameter SIM₀ : ∀ v o, (v,o) ⊨ q → ∃ w, (w,o) ⊨ p ∧ (w,v,o) ⊨ J
+parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o',
-  (w,v,o) ⊨ J →
-  C (v,o) (v',o') →
-  ∃ w', A (w,o) (w',o') ∧
-        (w',v',o') ⊨ J
+  (o,w,v) ⊨ J →
+  C (o,v) (o',v') →
+  ∃ w', A (o,w) (o',w') ∧
+        (o',w',v') ⊨ J
 
 parameters (v : tvar β') (o : tvar γ')
 
@@ -43,14 +45,14 @@ parameters Γ : cpred
 parameters H : Γ ⊢ SPEC₁ v o
 
 noncomputable def Wx₀_f : tvar (β' → γ' → α') :=
-λ v o, ε w, (w,o) ⊨ p ∧ (w,v,o) ⊨ J
+λ v o, ε w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 
 noncomputable def Wx₀ : tvar α' :=
 Wx₀_f v o
 
 noncomputable def Wf_f : tvar (β' → γ' → γ' → α' → α') :=
-λ v' o o' w, ε w', A (w,o) (w',o') ∧
-                   (w', v', o') ⊨ J
+λ v' o o' w, ε w', A (o,w) (o',w') ∧
+                   (o',w',v') ⊨ J
 
 noncomputable def Wf : tvar (α' → α') :=
 Wf_f (⊙v) o (⊙o)
@@ -61,17 +63,17 @@ w ≃ Wx₀ ⋀ ◻(⊙w ≃ Wf w)
 include SIM₀
 
 lemma init_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ q!⦃o,v⦄ ⟶ p!⦃o,w⦄ :=
+: Γ ⊢ ∀∀ w, Wtn w ⟶ q!⦃v,o⦄ ⟶ p!⦃w,o⦄ :=
 begin
   lifted_pred [nat.sub_self,Wtn] ,
   introv Hq, intros, simp [Hq,Wx₀,Wx₀_f],
   unfold_coes, simp [Wx₀,Wx₀_f],
   apply_epsilon_spec,
 end
-
+set_option trace.app_builder true
 include H SIM
 lemma J_inv_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃o,v,w⦄) :=
+: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃v,w,o⦄) :=
 begin [temporal]
   introv Hw,
   apply induct _ _ _ _,
@@ -91,7 +93,7 @@ begin [temporal]
 end
 
 lemma C_imp_A_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(⟦ v,o | C ⟧ ⟶ ⟦ w,o | A ⟧) :=
+: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(⟦ o,v | C ⟧ ⟶ ⟦ o,w | A ⟧) :=
 begin [temporal]
   intros w Hw,
   have := J_inv_in_w p q A C J SIM₀ @SIM v o Γ H,
@@ -150,8 +152,8 @@ open classical simulation
 
 include H₀ INV
 
-def A' : plift α' × unit → plift α' × unit → Prop :=
-A on (plift.down ∘ prod.fst)
+def A' : act $ unit × plift α' :=
+A on (plift.down ∘ prod.snd)
 
 parameters [_inst : inhabited α']
 
@@ -162,19 +164,19 @@ begin
   intro,
   let o : tvar unit := ↑(),
   let C : unit × unit → unit × unit → Prop := λ _ _, true,
-  let prj : var (plift α' × unit) α' := ⟨plift.down⟩ ! pair.fst,
-  let p' : pred' (plift α' × unit) := p ! prj,
+  let prj : var (unit × plift α') α' := ⟨plift.down⟩ ! pair.snd,
+  let p' : pred' (unit × plift α') := p ! prj,
   have _inst : inhabited (plift α') := ⟨ plift.up (default α') ⟩,
-  let J' : pred' (plift α' × unit × unit) := J ! ⟨plift.down⟩ ! pair.fst,
-  have := @simulation _ _ _ p' (@True $ unit × unit) (A' H₀ INV) C J' _ _ _ o o Γ _,
+  let J' : pred' (unit × plift α' × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
+  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' _ _ _ o o Γ _,
   begin [temporal]
     revert this,
     let f : tvar (plift α') → tvar α' := λ v, ⟨plift.down⟩ ! v,
     let SPEC := @SPEC₀ _ _ p' (A' H₀ INV),
     let SPEC' := λ (v : tvar α'), p ! v ⋀ ◻⟦ v | A ⟧,
     apply p_exists_imp_p_exists' (λ w, SPEC w o) SPEC' f,
-    intro, simp only [SPEC,f,SPEC',SPEC₀,p',prj,proj_assoc,pair.fst_mk,A'],
-    monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.fst_mk'],
+    intro, simp only [SPEC,f,SPEC',SPEC₀,p',prj,proj_assoc,pair.snd_mk,A'],
+    monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.snd_mk'],
     refl,
   end,
   { intros,
@@ -193,48 +195,48 @@ end
 
 end witness_construction
 
-namespace refinement
+namespace one_to_one
 section
 open fairness
 parameters {α' : Type u} {β' : Type u₀} {γ' : Type u₁ }
 parameters {evt : Type u₂}
-parameters {p : pred' (α'×γ')} {q : pred' (β'×γ')}
-parameters (A : evt → act (α'×γ')) (C : evt → act (β'×γ'))
-parameters {cs₀ fs₀ : evt → pred' (α'×γ')} {cs₁ fs₁ : evt → pred' (β'×γ')}
-parameters (J : pred' (α'×β'×γ'))
+parameters {p : pred' (γ'×α')} {q : pred' (γ'×β')}
+parameters (A : evt → act (γ'×α')) (C : evt → act (γ'×β'))
+parameters {cs₀ fs₀ : evt → pred' (γ'×α')} {cs₁ fs₁ : evt → pred' (γ'×β')}
+parameters (J : pred' (γ'×α'×β'))
 
 section specs
 
 parameters p q cs₀ fs₀ cs₁ fs₁
 
 def SPEC₀.saf (v : tvar α') (o : tvar γ') : cpred :=
-p ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ v,o | A i ⟧)
+p ! ⦃ v,o ⦄ ⋀
+◻(∃∃ i, ⟦ o,v | A i ⟧)
 
 def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
 SPEC₀.saf v o ⋀
-∀∀ i, sched (cs₀ i ! ⦃o,v⦄) (fs₀ i ! ⦃o,v⦄) ⟦ v,o | A i ⟧
+∀∀ i, sched (cs₀ i ! ⦃v,o⦄) (fs₀ i ! ⦃v,o⦄) ⟦ o,v | A i ⟧
 
 def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ v,o | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ v,o | C i ⟧
+q ! ⦃ v,o ⦄ ⋀
+◻(∃∃ i, ⟦ o,v | C i ⟧) ⋀
+∀∀ i, sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) ⟦ o,v | C i ⟧
 
 def SPEC₂ (v : tvar β') (o : tvar γ') (s : tvar evt) : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, s ≃ ↑i ⋀ ⟦ v,o | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) (s ≃ ↑i ⋀ ⟦ v,o | C i ⟧)
+q ! ⦃ v,o ⦄ ⋀
+◻(∃∃ i, s ≃ ↑i ⋀ ⟦ o,v | C i ⟧) ⋀
+∀∀ i, sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) (s ≃ ↑i ⋀ ⟦ o,v | C i ⟧)
 
 end specs
 
-parameter [inhabited α']
-parameter SIM₀ : ∀ v o, (v,o) ⊨ q → ∃ w, (w,o) ⊨ p ∧ (w,v,o) ⊨ J
+parameters [inhabited α'] [inhabited evt]
+parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o' e,
-  (w,v,o) ⊨ J →
-  C e (v,o) (v',o') →
-  ∃ w', A e (w,o) (w',o') ∧
-        (w',v',o') ⊨ J
+  (o,w,v) ⊨ J →
+  C e (o,v) (o',v') →
+  ∃ w', A e (o,w) (o',w') ∧
+        (o',w',v') ⊨ J
 
 parameters (v : tvar β') (o : tvar γ') (sch : tvar evt)
 
@@ -243,9 +245,9 @@ variable (Γ : cpred)
 parameters β' γ'
 
 variable Hpo : ∀ e w,
-  one_to_one_po (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃o,v,w⦄))
-    (cs₁ e!⦃o,v⦄) (fs₁ e!⦃o,v⦄) ⟦ v,o | C e⟧
-    (cs₀ e!⦃o,w⦄) (fs₀ e!⦃o,w⦄) ⟦ w,o | A e⟧
+  one_to_one_po (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃v,w,o⦄))
+    (cs₁ e!⦃v,o⦄) (fs₁ e!⦃v,o⦄) ⟦ o,v | C e⟧
+    (cs₀ e!⦃w,o⦄) (fs₀ e!⦃w,o⦄) ⟦ o,w | A e⟧
 parameters {β' γ'}
 
 section SPEC₂
@@ -253,52 +255,62 @@ variables H : Γ ⊢ SPEC₂ v o sch
 
 open prod temporal.prod
 
-def Next_a :=
-λ σ σ', ∃ e, A e σ σ'
+def Next_a : act $ γ' × evt × α' :=
+λ σ σ',
+∃ e, σ.2.1 = e ∧ (A e on map_right snd) σ σ'
 
-def Next_c :=
-λ σ σ' : (evt × β') × γ', ∃ e, σ.1.1 = e ∧ (C e on map_left snd) σ σ'
+def Next_c : act $ γ' × evt × β' :=
+λ σ σ',
+∃ e, σ.2.1 = e ∧ (C e on map_right snd) σ σ'
 
 section J
-parameter evt
-def J' : pred' (α' × (evt × β') × γ') :=
-J ! ⟨prod.map_right $ prod.map_left prod.snd⟩
+def J' : pred' (γ' × (evt × α') × (evt × β')) :=
+J ! ⟨ prod.map_right $ prod.map prod.snd prod.snd ⟩
 
-parameter q
-def q' : pred' ((evt × β') × γ') :=
-q ! ⟨prod.map_left prod.snd⟩
+def p' : pred' (γ' × evt × α') :=
+p ! ⟨prod.map_right prod.snd⟩
+
+def q' : pred' (γ' × evt × β') :=
+q ! ⟨prod.map_right prod.snd⟩
 
 end J
 
 variable w : tvar α'
-open simulation
-noncomputable def Wtn := Wtn p Next_a J' ⦃v,sch⦄ o
+open simulation function
+noncomputable def Wtn := Wtn p' Next_a J' ⦃v,sch⦄ o
 
 variable valid_witness
-: Γ ⊢ Wtn w
+: Γ ⊢ Wtn ⦃w,sch⦄
 
 lemma abstract_sch (e : evt)
-: Γ ⊢ sch ≃ e ⋀ ⟦ w,o | A e ⟧ ≡ sch ≃ e ⋀ ⟦ w,o | Next_a ⟧ :=
-sorry
+: Γ ⊢ sch ≃ e ⋀ ⟦ o,w | A e ⟧ ≡ sch ≃ e ⋀ ⟦ o,sch,w | Next_a ⟧ :=
+begin
+  lifted_pred,
+  split ; intro h ; split
+  ; cases h with h₀ h₁ ; try { assumption },
+  { simp [Next_a,on_fun,h₀], auto, },
+  { simp [Next_a,on_fun,h₀] at h₁, auto }
+end
 
 section Simulation_POs
 include SIM₀
 lemma SIM₀' (v : evt × β') (o : γ')
-  (h : (v, o) ⊨ q')
-: (∃ (w : α'), (w, o) ⊨ p ∧ (w, v, o) ⊨ J') :=
+  (h : (o, v) ⊨ q')
+: (∃ (w : evt × α'), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
 begin
   simp [q',prod.map_left] at h,
   specialize SIM₀ v.2 o h,
   revert SIM₀, intros_mono,
-  simp [J'],
+  simp [J',p',map], intros, split,
+  tauto,
 end
 
 omit SIM₀
 include SIM
-lemma SIM' (w : α') (v : evt × β') (o : γ') (v' : evt × β') (o' : γ')
-  (h₀ : (w, v, o) ⊨ J')
-  (h₁ : Next_c (v, o) (v', o'))
-: (∃ (w' : α'), Next_a (w, o) (w', o') ∧ (w', v', o') ⊨ J') :=
+lemma SIM' (w : evt × α') (v : evt × β') (o : γ') (v' : evt × β') (o' : γ')
+  (h₀ : (o, w, v) ⊨ J')
+  (h₁ : Next_c (o, v) (o', v'))
+: (∃ w', Next_a (o,w) (o',w') ∧ (o', w', v') ⊨ J') :=
 sorry
 
 include H
@@ -308,7 +320,7 @@ lemma H'
 sorry
 
 lemma witness_imp_SPEC₀_saf
-  (h : Γ ⊢ Wtn w)
+  (h : Γ ⊢ Wtn ⦃w,sch⦄)
 : Γ ⊢ SPEC₀.saf w o :=
 sorry
 
@@ -319,7 +331,7 @@ include Hpo p SIM₀ SIM
 lemma SPEC₂_imp_SPEC₁
 : (SPEC₂ v o sch) ⟹ (SPEC₁ v o) :=
 begin [temporal]
-  simp only [SPEC₁,SPEC₂,temporal.refinement.SPEC₁,temporal.refinement.SPEC₂],
+  simp only [SPEC₁,SPEC₂,temporal.one_to_one.SPEC₁,temporal.one_to_one.SPEC₂],
   monotonicity, apply ctx_p_and_p_imp_p_and',
   { monotonicity, simp, intros x h₀ h₁,
     existsi x, exact h₁ },
@@ -329,62 +341,62 @@ begin [temporal]
 end
 
 lemma H_C_imp_A (e : evt)
-: SPEC₂ v o sch ⋀ Wtn w ⋀ ◻(J ! ⦃o,v,w⦄) ⟹ ◻(sch ≃ ↑e ⋀ ⟦ v,o | C e ⟧ ⟶ ⟦ w,o | A e ⟧) :=
+: SPEC₂ v o sch ⋀ Wtn ⦃w,sch⦄ ⋀ ◻(J ! ⦃v,w,o⦄) ⟹
+  ◻(sch ≃ ↑e ⋀ ⟦ o,v | C e ⟧ ⟶ ⟦ o,w | A e ⟧) :=
 begin [temporal]
   intro H',
-  have H : temporal.refinement.SPEC₁ v o ⋀
-           temporal.refinement.Wtn w ⋀
-           ◻(J ! ⦃o,v,w⦄),
+  have H : temporal.one_to_one.SPEC₁ v o ⋀
+           temporal.one_to_one.Wtn ⦃w,sch⦄ ⋀
+           ◻(J ! ⦃v,w,o⦄),
   { revert H',  persistent,
-    intros,
-    casesm* _ ⋀ _, split* ; try { assumption },
-    apply temporal.refinement.SPEC₂_imp_SPEC₁ _ Γ _
-    ; auto, },
+    intro, casesm* _ ⋀ _, split* ; try { assumption },
+    apply temporal.one_to_one.SPEC₂_imp_SPEC₁ _ Γ _,
+    auto, casesm* _ ⋀ _, auto, },
   clear Hpo,
-  let J' := J' evt J,
-  have SIM₀' := temporal.refinement.SIM₀', clear SIM₀,
-  have SIM' := temporal.refinement.SIM',  clear SIM,
-  have := C_imp_A_in_w p _ (Next_a A) (Next_c C) J' SIM₀' SIM' ⦃v,sch⦄ o Γ _ w _,
+  let J' := temporal.one_to_one.J',
+  have SIM₀' := temporal.one_to_one.SIM₀', clear SIM₀,
+  have SIM' := temporal.one_to_one.SIM',  clear SIM,
+  have := C_imp_A_in_w p' _ (Next_a A) (Next_c C) J' SIM₀' SIM' ⦃v,sch⦄ o Γ _ ⦃w,sch⦄ _,
   { persistent, henceforth at this ⊢,
     simp, intros h₀ h₁, clear_except this h₀ h₁,
-    suffices : sch ≃ ↑e ⋀ ⟦ w,o | A e ⟧, apply this.right,
+    suffices : sch ≃ ↑e ⋀ ⟦ o,w | A e ⟧, apply this.right,
     rw abstract_sch, split, assumption,
     apply this _,
     simp [Next_c],
-    suffices : ⟦ ⦃v,sch⦄,o | λ (σ σ' : (evt × β') × γ'), (σ.fst).fst = e ∧ (C e on map_left snd) σ σ' ⟧,
+    suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), (σ.snd).fst = e ∧ (C e on map_right snd) σ σ' ⟧,
     { revert this, action { simp, intro, subst e, simp, },  },
     rw [← action_and_action,← init_eq_action,action_on'], split, admit,
     simp [h₁], },
   clear_except H',
-  simp [simulation.SPEC₁,SPEC₂,temporal.refinement.SPEC₂] at H' ⊢,
+  simp [simulation.SPEC₁,SPEC₂,temporal.one_to_one.SPEC₂] at H' ⊢,
   cases_matching* _ ⋀ _, split,
   { simp [q'], assumption, },
   { select H' : ◻(p_exists _), clear_except H',
     henceforth at H' ⊢, cases H' with i H',
     simp [Next_c],
-    suffices : ⟦ ⦃v,sch⦄,o | λ (σ σ' : (evt × β') × γ'), σ.fst.fst = i ∧ (C i on map_left snd) σ σ' ⟧,
+    suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), σ.snd.fst = i ∧ (C i on map_right snd) σ σ' ⟧,
     { revert this, action { simp, intro, subst i, simp } },
     rw [← action_and_action], },
   { cases_matching* _ ⋀ _, assumption, },
 end
 
 lemma Hpo' (e : evt)
-: one_to_one_po (SPEC₂ v o sch ⋀ Wtn w ⋀ ◻(J ! ⦃o,v,w⦄))
-/- -/ (cs₁ e ! ⦃o,v⦄)
-      (fs₁ e ! ⦃o,v⦄)
-      (sch ≃ ↑e ⋀ ⟦ v,o | C e ⟧)
-/- -/ (cs₀ e ! ⦃o,w⦄)
-      (fs₀ e ! ⦃o,w⦄)
-      ⟦ w,o | A e ⟧ :=
+: one_to_one_po (SPEC₂ v o sch ⋀ Wtn ⦃w,sch⦄ ⋀ ◻(J ! ⦃v,w,o⦄))
+/- -/ (cs₁ e ! ⦃v,o⦄)
+      (fs₁ e ! ⦃v,o⦄)
+      (sch ≃ ↑e ⋀ ⟦ o,v | C e ⟧)
+/- -/ (cs₀ e ! ⦃w,o⦄)
+      (fs₀ e ! ⦃w,o⦄)
+      ⟦ o,w | A e ⟧ :=
 begin
   have
-  : temporal.refinement.SPEC₂ v o sch ⋀ temporal.refinement.Wtn w ⋀ ◻(J ! ⦃o,v,w⦄) ⟹
-    temporal.refinement.SPEC₁ v o ⋀ temporal.refinement.SPEC₀.saf w o ⋀ ◻(J ! ⦃o,v,w⦄),
+  : temporal.one_to_one.SPEC₂ v o sch ⋀ temporal.one_to_one.Wtn ⦃w,sch⦄ ⋀ ◻(J ! ⦃v,w,o⦄) ⟹
+    temporal.one_to_one.SPEC₁ v o ⋀ temporal.one_to_one.SPEC₀.saf w o ⋀ ◻(J ! ⦃v,w,o⦄),
   begin [temporal]
     simp, intros h₀ h₁ h₂,
     split*,
-    { apply temporal.refinement.SPEC₂_imp_SPEC₁ Hpo _ h₀, },
-    { apply temporal.refinement.witness_imp_SPEC₀_saf ; auto, },
+    { apply temporal.one_to_one.SPEC₂_imp_SPEC₁ Hpo _ h₀, },
+    { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; auto, },
     { auto }
   end,
   constructor
@@ -392,41 +404,67 @@ begin
         ; transitivity
         ; [ apply this
           , assumption ] },
-  apply temporal.refinement.H_C_imp_A Hpo,
+  apply temporal.one_to_one.H_C_imp_A Hpo,
 end
 
 end Simulation_POs
 
 include H SIM₀ SIM Hpo
 
+lemma sched_ref (i : evt) (w : tvar (evt × α'))
+ (Hw : Γ ⊢ Wtn w)
+ (h : Γ ⊢ sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) (sch ≃ ↑i ⋀ ⟦ o,v | C i ⟧))
+: Γ ⊢ sched (cs₀ i ! ⦃pair.snd ! w,o⦄) (fs₀ i ! ⦃pair.snd ! w,o⦄) ⟦ o,pair.snd ! w | A i ⟧ :=
+begin [temporal]
+  have H' := one_to_one.H' C v o sch _ H,
+  have hJ : ◻(J' J ! ⦃v,sch,w,o⦄),
+  { replace SIM₀ := SIM₀' _ SIM₀,
+    replace SIM := SIM' A C J SIM,
+    apply simulation.J_inv_in_w p' q' (Next_a A) _ (J' J) SIM₀ SIM _ o _ H' w Hw },
+  simp [J'] at hJ,
+  have Hpo' := Hpo' p q A C cs₁ fs₁ J _ _ _ o sch Hpo (pair.snd ! w) i ; try { auto },
+  apply replacement Hpo' Γ _ _,
+  clear Hpo Hpo' SIM SIM₀,
+  have : ◻ (⦃pair.snd ! w,sch⦄ ≃ w),
+  { simp [Wtn,simulation.Wtn] at Hw,
+    cases Hw with Hw₀ Hw₁,
+    apply induct _ _ _ _,
+    { persistent,
+      henceforth, intro h',
+      admit }, admit  },
+  rw [this], tauto, auto,
+end
+
 lemma one_to_one
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  select_witness w : temporal.refinement.Wtn w with Hw,
+  apply p_exists_partial_intro _ (proj $ @pair.snd evt α') _ _,
+  select_witness w : temporal.one_to_one.Wtn w with Hw,
   have this := H, revert this,
   dsimp [SPEC₀,SPEC₁],
-  have H' := temporal.refinement.H' , -- o sch,
+  have H' := temporal.one_to_one.H' , -- o sch,
   apply ctx_p_and_p_imp_p_and' _ _,
   apply ctx_p_and_p_imp_p_and' _ _,
   { clear_except SIM₀ Hw H,
     replace SIM₀ := SIM₀' _ SIM₀,
-    have := init_in_w p (q' evt q) (Next_a A) (J' evt J) SIM₀ ⦃v,sch⦄ o Γ,
+    have := init_in_w p' q' (Next_a A) (J' J) SIM₀ ⦃v,sch⦄ o Γ,
     intro Hq,
-    apply this _ Hw _,
+    replace this := this _ Hw _, simp [p'] at this,
+    apply this,
     simp [q',proj_assoc], apply Hq, },
   { clear_except SIM SIM₀ Hw H,
     have H' := H' C v o sch _ H,
     replace SIM₀ := SIM₀' _ SIM₀,
     replace SIM := SIM' A C J SIM,
-    have := temporal.simulation.C_imp_A_in_w p (q' evt q)
-      (Next_a A) (Next_c C) (J' evt J) SIM₀ SIM ⦃v,sch⦄ o _ H' w Hw,
-    -- replace this := this w ,
-    -- have := C_imp_A_in_w p (q' evt q) (Next_a A) (Next_c C) (J' evt J) SIM₀ SIM ⦃v,sch⦄ o Γ H',
+    have := temporal.simulation.C_imp_A_in_w p' q'
+      (Next_a A) (Next_c C) (J' J) SIM₀ SIM ⦃v,sch⦄ o _ H' w Hw,
     { monotonicity only,
       simp [exists_action],
-      intros e h₀ h₁, apply this _,
+      intros e h₀ h₁, replace this := this _,
+      { revert this,
+        explicit { simp [Next_a,on_fun], intros h, exact ⟨_,h⟩ }, },
       simp [Next_c],
-      suffices : ⟦ ⦃v,sch⦄,o | λ (σ σ' : (evt × β') × γ'), ((λ s s', s = e) on (prod.fst ∘ prod.fst)) σ σ' ∧ (C e on map_left snd) σ σ' ⟧,
+      suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), ((λ s s', s = e) on (prod.fst ∘ prod.snd)) σ σ' ∧ (C e on map_right prod.snd) σ σ' ⟧,
       revert this, action
       { simp [function.on_fun],
         intros, subst e, assumption, },
@@ -434,16 +472,8 @@ begin [temporal]
       rw [action_on,action_on,coe_over_comp,proj_assoc,← init_eq_action,coe_eq],
       simp, split ; assumption } },
   { intros h i,
-    have H' := H' C v o sch _ H,
     replace h := h i,
-    have hJ : ◻(J' evt J ! ⦃o,⦃v,sch⦄,w⦄),
-    { replace SIM₀ := SIM₀' _ SIM₀,
-      replace SIM := SIM' A C J SIM,
-      apply simulation.J_inv_in_w p _ (Next_a A) _ (J' evt J) SIM₀ SIM _ o _ H' w Hw },
-    simp [J'] at hJ,
-    have Hpo' := Hpo' p q A C cs₁ fs₁ J _ _ _ o sch Hpo w i ; try { auto },
-    apply replacement Hpo' Γ _ _,
-    tauto, auto, },
+    apply temporal.one_to_one.sched_ref ; auto },
 end
 end SPEC₂
 
@@ -465,10 +495,10 @@ lemma refinement_SPEC₁
 sorry
 
 include SIM₀ SIM
-lemma one_to_one_refinement
-  (h : ∀ c e a, one_to_one_po' (SPEC₁ c o ⋀ SPEC₀.saf a o ⋀ ◻(J ! ⦃o,c,a⦄))
+lemma refinement
+  (h : ∀ c e a, one_to_one_po' (SPEC₁ c o ⋀ SPEC₀.saf a o ⋀ ◻(J ! ⦃c,a,o⦄))
          ⟨cs₁ e,fs₁ e,C e⟩
-         ⟨cs₀ e,fs₀ e,A e⟩ ⦃o,c⦄ ⦃o,a⦄)
+         ⟨cs₀ e,fs₀ e,A e⟩ ⦃c,o⦄ ⦃a,o⦄)
 : (∃∃ c, SPEC₁ c o) ⟹ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   transitivity (∃∃ c sch, SPEC₂ q C cs₁ fs₁ c o sch),
@@ -483,6 +513,6 @@ begin [temporal]
 end
 
 end
-end refinement
+end one_to_one
 
 end temporal
