@@ -105,6 +105,11 @@ lemma next_proj (f : var α β) (v : tvar α)
 : ⊙(f ! v) = f ! ⊙v :=
 by lifted_pred [next]
 
+@[simp]
+lemma next_v_eq (p q : tvar α)
+: ⊙(p ≃ q) = ⊙p ≃ ⊙q :=
+by lifted_pred
+
 open nat
 
 @[simp]
