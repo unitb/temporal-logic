@@ -6,29 +6,27 @@ import temporal_logic.lemmas
 universe variables u u₀ u₁ u₂
 open predicate nat
 
-variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
-
 namespace temporal
 
 namespace simulation
 section
 
-parameters {α' : Type u} {β' : Type u₀} {γ' : Type u₁ }
-parameters (p : pred' (γ'×α')) (q : pred' (γ'×β'))
-parameters (A : act (γ'×α')) (C : act (γ'×β'))
-parameters (J : pred' (γ'×α'×β'))
+parameters {α : Type u} {β : Type u₀} {γ : Type u₁ }
+parameters (p : pred' (γ×α)) (q : pred' (γ×β))
+parameters (A : act (γ×α)) (C : act (γ×β))
+parameters (J : pred' (γ×α×β))
 
-variables (x : tvar α') (y : tvar β') (z : tvar γ')
+variables (x : tvar α) (y : tvar β) (z : tvar γ)
 
-def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
+def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
 p ! ⦃ v,o ⦄ ⋀
 ◻⟦ o,v | A ⟧
 
-def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
+def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
 q ! ⦃ v,o ⦄ ⋀
 ◻⟦ o,v | C ⟧
 
-parameters [inhabited α']
+parameters [inhabited α]
 parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o',
@@ -37,25 +35,25 @@ parameter SIM
   ∃ w', A (o,w) (o',w') ∧
         (o',w',v') ⊨ J
 
-parameters (v : tvar β') (o : tvar γ')
+parameters (v : tvar β) (o : tvar γ)
 
 parameters Γ : cpred
 parameters H : Γ ⊢ SPEC₁ v o
 
-noncomputable def Wx₀_f : tvar (β' → γ' → α') :=
+noncomputable def Wx₀_f : tvar (β → γ → α) :=
 λ v o, ε w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 
-noncomputable def Wx₀ : tvar α' :=
+noncomputable def Wx₀ : tvar α :=
 Wx₀_f v o
 
-noncomputable def Wf_f : tvar (β' → γ' → γ' → α' → α') :=
+noncomputable def Wf_f : tvar (β → γ → γ → α → α) :=
 λ v' o o' w, ε w', A (o,w) (o',w') ∧
                    (o',w',v') ⊨ J
 
-noncomputable def Wf : tvar (α' → α') :=
+noncomputable def Wf : tvar (α → α) :=
 Wf_f (⊙v) o (⊙o)
 
-noncomputable def Wtn (w : tvar α') :=
+noncomputable def Wtn (w : tvar α) :=
 w ≃ Wx₀ ⋀ ◻(⊙w ≃ Wf w)
 
 include SIM₀
@@ -137,9 +135,9 @@ export simulation (simulation simulation')
 
 section witness_construction
 
-parameters {α' : Sort u}
-parameters {p J : pred' α'}
-parameters {A : act α'}
+parameters {α : Sort u}
+parameters {p J : pred' α}
+parameters {A : act α}
 
 parameters H₀ : p ⟹ J
 parameters FIS₀ : ∃ σ, σ ⊨ p
@@ -150,10 +148,10 @@ open classical simulation
 
 include H₀ INV
 
-def A' : act $ unit × plift α' :=
+def A' : act $ unit × plift α :=
 A on (plift.down ∘ prod.snd)
 
-parameters [_inst : inhabited α']
+parameters [_inst : inhabited α]
 
 include FIS₀ FIS _inst
 lemma witness_construction
@@ -162,16 +160,16 @@ begin
   intro,
   let o : tvar unit := ↑(),
   let C : unit × unit → unit × unit → Prop := λ _ _, true,
-  let prj : var (unit × plift α') α' := ⟨plift.down⟩ ! pair.snd,
-  let p' : pred' (unit × plift α') := p ! prj,
-  have _inst : inhabited (plift α') := ⟨ plift.up (default α') ⟩,
-  let J' : pred' (unit × plift α' × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
+  let prj : var (unit × plift α) α := ⟨plift.down⟩ ! pair.snd,
+  let p' : pred' (unit × plift α) := p ! prj,
+  have _inst : inhabited (plift α) := ⟨ plift.up (default α) ⟩,
+  let J' : pred' (unit × plift α × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
   have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' _ _ _ o o Γ _,
   begin [temporal]
     revert this,
-    let f : tvar (plift α') → tvar α' := λ v, ⟨plift.down⟩ ! v,
+    let f : tvar (plift α) → tvar α := λ v, ⟨plift.down⟩ ! v,
     let SPEC := @SPEC₀ _ _ p' (A' H₀ INV),
-    let SPEC' := λ (v : tvar α'), p ! v ⋀ ◻⟦ v | A ⟧,
+    let SPEC' := λ (v : tvar α), p ! v ⋀ ◻⟦ v | A ⟧,
     apply p_exists_imp_p_exists' (λ w, SPEC w o) SPEC' f,
     intro, simp only [SPEC,f,SPEC',SPEC₀,p',prj,proj_assoc,pair.snd_mk,A'],
     monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.snd_mk'],

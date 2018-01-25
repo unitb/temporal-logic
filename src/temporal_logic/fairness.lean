@@ -33,17 +33,17 @@ structure one_to_one_po (S p q A p' q' A' : cpred) : Prop :=
   (stable : S ⟹ (◻◇p ⟶ ◇◻p' ⟶ ◇◻p))
   (sim : S ⟹ ◻(A ⟶ A'))
 
-structure event (α : Type u₀) (β : Type u₁) :=
-(p q : pred' α) (A : act β)
+structure event (α : Type u₀) :=
+(p q : pred' α) (A : act α)
 
 def one_to_one_po' {α β} (S : cpred)
-  (e₀ : event α α) (e₁ : event β β)
-  (v₀) (w₀)
-: Prop :=
+: event α → event β → tvar α → tvar β → Prop
+| ⟨p₀,q₀,A₀⟩ ⟨p₁,q₁,A₁⟩ v w :=
 one_to_one_po S
-  (e₀.p!v₀) (e₀.q!v₀) ⟦ v₀ | e₀.A ⟧
-  (e₁.p!w₀) (e₁.q!w₀) ⟦ w₀ | e₁.A ⟧
+  (p₀!v) (q₀!v) ⟦ v | A₀ ⟧
+  (p₁!w) (q₁!w) ⟦ w | A₁ ⟧
 
+namespace one_to_one
 section one_to_one
 
 parameters {S p q A : cpred}
@@ -84,21 +84,49 @@ begin [temporal]
 end
 
 end one_to_one
+end one_to_one
+export one_to_one (replacement)
+
+
+namespace splitting
 section splitting
 
-variables {t : Sort u}
-variables w p q A : t → cpred
-variables Γ p' q' A' : cpred
-
+parameters (t : Sort u)
 -- TODO(Simon) Weaken proof obligation `H₀`. We can do with ◻◇_ ⟶ ◻◇ _
 -- instead of _ ~> _. Use w i unless -p'
+structure many_to_many_po (S : cpred) (w p q A : t → cpred) (p' q' A' : cpred) : Prop :=
+  (delay : S ⟹ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i)
+  (stable : S ⟹ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i))
+  (sim : S ⟹ ∀∀ i, ◻(A i ⟶ A'))
+  (wfis : S ⟹ ◻(p' ⋀ q' ⟶ ∃∃ i, w i))
+def many_to_many_po' {α β} (S : cpred) (w : t → cpred)
+: (t → event α) → event β → tvar α → tvar β → Prop
+| e ⟨p₁,q₁,A₁⟩ cv av :=
+many_to_many_po S w
+  (λ i, (e i).p!cv) (λ i, (e i).q!cv) (λ i, ⟦ cv | (e i).A ⟧)
+  (p₁!av) (q₁!av) ⟦ av | A₁ ⟧
+
+parameters {t}
+parameters w p q A : t → cpred
+parameters p' q' A' S : cpred
+parameters po : many_to_many_po S w p q A p' q' A'
+parameters Γ : cpred
+parameters hS : Γ ⊢ S
 
 -- variables H₀ : Γ ⊢ ∀∀ i, ◻◇(p' ⋀ q' ⋀ w i) ⟶ ◻◇p i ⋀ q i ⋀ w i
-variables H₀ : Γ ⊢ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i
-variables H₁ : Γ ⊢ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i)
-variables H₂ : Γ ⊢ ∀∀ i, ◻(A i ⟶ A')
-variables H₃ : Γ ⊢ ◻(p' ⋀ q' ⟶ ∃∃ i, w i)
-include H₀ H₁ H₂ H₃
+def H₀ : Γ ⊢ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i :=
+po.delay Γ hS
+
+def H₁ : Γ ⊢ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i) :=
+po.stable Γ hS
+
+def H₂ : Γ ⊢ ∀∀ i, ◻(A i ⟶ A') :=
+po.sim Γ hS
+
+def H₃ : Γ ⊢ ◻(p' ⋀ q' ⟶ ∃∃ i, w i) :=
+po.wfis Γ hS
+
+include hS po H₀ H₁ H₂ H₃
 
 open temporal
 lemma splitting
@@ -106,13 +134,14 @@ lemma splitting
 begin [temporal]
   intro H₅,
   simp [sched] at *, intros hp' hq',
-  have H₇ := inf_often_of_leads_to (temporal.leads_to_disj_gen  H₀) _,
+  have H₇ := temporal.leads_to_disj_gen temporal.fairness.splitting.H₀,
+  replace H₇ := inf_often_of_leads_to H₇ _,
   replace H₇ : ∃∃ (i : t), ◇(p i ⋀ q i ⋀ w i),
   { henceforth at H₇, rw eventually_exists at H₇, },
   { cases H₇ with i H₇,
-    have H₉ := H₁ i _ hp',
+    have H₉ := temporal.fairness.splitting.H₁ i _ hp',
     have : ◻◇q i,
-    { have := inf_often_of_leads_to (H₀ i) _, revert this,
+    { have := inf_often_of_leads_to (temporal.fairness.splitting.H₀ i) _, revert this,
       { monotonicity only, lifted_pred, show _, { intros, assumption } },
       rw_using : (p' ⋀ q' ⋀ w i) = (p' ⋀ w i ⋀ q'),
       { lifted_pred, begin [smt] end },
@@ -120,20 +149,24 @@ begin [temporal]
       { apply stable_and_of_stable_of_stable hp',
         revert H₉, monotonicity only p_and_elim_right _ _ _, }, },
     have := H₅ i _ this,
-    { revert this, monotonicity only,
-      apply H₂ i },
+    { revert this,
+      have H₂ := temporal.fairness.splitting.H₂ i,
+      monotonicity only,
+      apply H₂  },
     { revert H₉, monotonicity only, lifted_pred,
       show _, { intros, assumption } },
     { revert H₇, monotonicity only, lifted_pred }, },
   { have := coincidence hp' hq', revert this,
+    have H₃ := temporal.fairness.splitting.H₃,
     monotonicity only,
-    simp, intros hp hq,
-    have := H₃ hp hq,
+    intros hp,
+    have := H₃ hp,
     revert this, apply p_exists_p_imp_p_exists,
-    intros i hw, repeat { split <|> assumption }, } ,
+    tauto, } ,
 end
 
 end splitting
-
+end splitting
+export splitting (splitting many_to_many_po)
 end fairness
 end temporal

@@ -3,45 +3,46 @@ import .simulation
 universe variables u u₀ u₁ u₂
 open predicate nat
 
-variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
-
 namespace temporal
 
 namespace one_to_one
 section
 open fairness
-parameters {α' : Type u} {β' : Type u₀} {γ' : Type u₁ }
+parameters {α : Type u} {β : Type u₀} {γ : Type u₁ }
 parameters {evt : Type u₂}
-parameters {p : pred' (γ'×α')} {q : pred' (γ'×β')}
-parameters (A : evt → act (γ'×α')) (C : evt → act (γ'×β'))
-parameters {cs₀ fs₀ : evt → pred' (γ'×α')} {cs₁ fs₁ : evt → pred' (γ'×β')}
-parameters (J : pred' (γ'×α'×β'))
+parameters {p : pred' (γ×α)} {q : pred' (γ×β)}
+parameters (A : evt → act (γ×α)) (C : evt → act (γ×β))
+parameters {cs₀ fs₀ : evt → pred' (γ×α)} {cs₁ fs₁ : evt → pred' (γ×β)}
+parameters (J : pred' (γ×α×β))
+
+abbreviation ae (i : evt) : event (γ×α) := ⟨cs₀ i,fs₀ i,A i⟩
+abbreviation ce (i : evt) : event (γ×β) := ⟨cs₁ i,fs₁ i,C i⟩
 
 section specs
 
 parameters p q cs₀ fs₀ cs₁ fs₁
 
-def SPEC₀.saf (v : tvar α') (o : tvar γ') : cpred :=
+def SPEC₀.saf (v : tvar α) (o : tvar γ) : cpred :=
 p ! ⦃ v,o ⦄ ⋀
 ◻(∃∃ i, ⟦ o,v | A i ⟧)
 
-def SPEC₀ (v : tvar α') (o : tvar γ') : cpred :=
+def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
 SPEC₀.saf v o ⋀
 ∀∀ i, sched (cs₀ i ! ⦃v,o⦄) (fs₀ i ! ⦃v,o⦄) ⟦ o,v | A i ⟧
 
-def SPEC₁ (v : tvar β') (o : tvar γ') : cpred :=
+def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
 q ! ⦃ v,o ⦄ ⋀
 ◻(∃∃ i, ⟦ o,v | C i ⟧) ⋀
 ∀∀ i, sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) ⟦ o,v | C i ⟧
 
-def SPEC₂ (v : tvar β') (o : tvar γ') (s : tvar evt) : cpred :=
+def SPEC₂ (v : tvar β) (o : tvar γ) (s : tvar evt) : cpred :=
 q ! ⦃ v,o ⦄ ⋀
 ◻(∃∃ i, s ≃ ↑i ⋀ ⟦ o,v | C i ⟧) ⋀
 ∀∀ i, sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) (s ≃ ↑i ⋀ ⟦ o,v | C i ⟧)
 
 end specs
 
-parameters [inhabited α'] [inhabited evt]
+parameters [inhabited α] [inhabited evt]
 parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o' e,
@@ -50,45 +51,45 @@ parameter SIM
   ∃ w', A e (o,w) (o',w') ∧
         (o',w',v') ⊨ J
 
-parameters (v : tvar β') (o : tvar γ') (sch : tvar evt)
+parameters (v : tvar β) (o : tvar γ) (sch : tvar evt)
 
 variable (Γ : cpred)
 
-parameters β' γ'
+parameters β γ
 
 variable Hpo : ∀ e w,
-  one_to_one_po (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃v,w,o⦄))
-    (cs₁ e!⦃v,o⦄) (fs₁ e!⦃v,o⦄) ⟦ o,v | C e⟧
-    (cs₀ e!⦃w,o⦄) (fs₀ e!⦃w,o⦄) ⟦ o,w | A e⟧
-parameters {β' γ'}
+  one_to_one_po' (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃v,w,o⦄))
+     (ce e) (ae e) ⦃v,o⦄ ⦃w,o⦄
+
+parameters {β γ}
 
 section SPEC₂
 variables H : Γ ⊢ SPEC₂ v o sch
 
 open prod temporal.prod
 
-def Next_a : act $ γ' × evt × α' :=
+def Next_a : act $ γ × evt × α :=
 λ σ σ',
 ∃ e, σ.2.1 = e ∧ (A e on map_right snd) σ σ'
 
-def Next_c : act $ γ' × evt × β' :=
+def Next_c : act $ γ × evt × β :=
 λ σ σ',
 ∃ e, σ.2.1 = e ∧ (C e on map_right snd) σ σ'
 
 section J
-def J' : pred' (γ' × (evt × α') × (evt × β')) :=
+def J' : pred' (γ × (evt × α) × (evt × β)) :=
 J ! ⟨ prod.map_right $ prod.map prod.snd prod.snd ⟩ ⋀
 ⟨ λ ⟨_, a, c⟩, a.1 = c.1 ⟩
 
-def p' : pred' (γ' × evt × α') :=
+def p' : pred' (γ × evt × α) :=
 p ! ⟨prod.map_right prod.snd⟩
 
-def q' : pred' (γ' × evt × β') :=
+def q' : pred' (γ × evt × β) :=
 q ! ⟨prod.map_right prod.snd⟩
 
 end J
 
-variable w : tvar α'
+variable w : tvar α
 open simulation function
 noncomputable def Wtn := Wtn p' Next_a J' ⦃v,sch⦄ o
 
@@ -107,9 +108,9 @@ end
 
 section Simulation_POs
 include SIM₀
-lemma SIM₀' (v : evt × β') (o : γ')
+lemma SIM₀' (v : evt × β) (o : γ)
   (h : (o, v) ⊨ q')
-: (∃ (w : evt × α'), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
+: (∃ (w : evt × α), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
 begin
   simp [q',prod.map_left] at h,
   specialize SIM₀ v.2 o h,
@@ -121,7 +122,7 @@ end
 
 omit SIM₀
 include SIM
-lemma SIM' (w : evt × α') (v : evt × β') (o : γ') (v' : evt × β') (o' : γ')
+lemma SIM' (w : evt × α) (v : evt × β) (o : γ) (v' : evt × β) (o' : γ)
   (h₀ : (o, w, v) ⊨ J')
   (h₁ : Next_c (o, v) (o', v'))
 : (∃ w', Next_a (o,w) (o',w') ∧ (o', w', v') ⊨ J') :=
@@ -239,7 +240,7 @@ begin [temporal]
     rw abstract_sch, split, assumption,
     apply this _,
     simp [Next_c],
-    suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), (σ.snd).fst = e ∧ (C e on map_right snd) σ σ' ⟧,
+    suffices : ⟦ o,sch,v | λ (σ σ' : γ × evt × β), (σ.snd).fst = e ∧ (C e on map_right snd) σ σ' ⟧,
     { revert this, action { simp, intro, subst e, simp, },  },
     rw [← action_and_action,← init_eq_action,action_on'], split,
     explicit
@@ -252,7 +253,7 @@ begin [temporal]
   { select H' : ◻(p_exists _), clear_except H',
     henceforth at H' ⊢, cases H' with i H',
     simp [Next_c],
-    suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), σ.snd.fst = i ∧ (C i on map_right snd) σ σ' ⟧,
+    suffices : ⟦ o,sch,v | λ (σ σ' : γ × evt × β), σ.snd.fst = i ∧ (C i on map_right snd) σ σ' ⟧,
     { revert this, action { simp, intro, subst i, simp } },
     rw [← action_and_action], },
   { cases_matching* _ ⋀ _, assumption, },
@@ -277,8 +278,8 @@ begin
     { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; auto, },
     { auto }
   end,
-  constructor
-  ; try { cases (Hpo e w)
+  constructor ;
+  try { cases (Hpo e w)
         ; transitivity
         ; [ apply this
           , assumption ] },
@@ -289,7 +290,7 @@ end Simulation_POs
 
 include H SIM₀ SIM Hpo
 
-lemma sched_ref (i : evt) (w : tvar (evt × α'))
+lemma sched_ref (i : evt) (w : tvar (evt × α))
  (Hw : Γ ⊢ Wtn w)
  (h : Γ ⊢ sched (cs₁ i ! ⦃v,o⦄) (fs₁ i ! ⦃v,o⦄) (sch ≃ ↑i ⋀ ⟦ o,v | C i ⟧))
 : Γ ⊢ sched (cs₀ i ! ⦃pair.snd ! w,o⦄) (fs₀ i ! ⦃pair.snd ! w,o⦄) ⟦ o,pair.snd ! w | A i ⟧ :=
@@ -315,7 +316,7 @@ end
 lemma one_to_one
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  apply p_exists_partial_intro _ (proj $ @pair.snd evt α') _ _,
+  apply p_exists_partial_intro _ (proj $ @pair.snd evt α) _ _,
   select_witness w : temporal.one_to_one.Wtn w with Hw,
   have this := H, revert this,
   dsimp [SPEC₀,SPEC₁],
@@ -341,7 +342,7 @@ begin [temporal]
       { revert this,
         explicit { simp [Next_a,on_fun], intros h, exact ⟨_,h⟩ }, },
       simp [Next_c],
-      suffices : ⟦ o,sch,v | λ (σ σ' : γ' × evt × β'), ((λ s s', s = e) on (prod.fst ∘ prod.snd)) σ σ' ∧ (C e on map_right prod.snd) σ σ' ⟧,
+      suffices : ⟦ o,sch,v | λ (σ σ' : γ × evt × β), ((λ s s', s = e) on (prod.fst ∘ prod.snd)) σ σ' ∧ (C e on map_right prod.snd) σ σ' ⟧,
       revert this, action
       { simp [function.on_fun],
         intros, subst e, assumption, },
