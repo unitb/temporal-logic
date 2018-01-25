@@ -53,6 +53,7 @@ matrix:
   - env: CMAKE_CXX_COMPILER=g++-6 CMAKE_BUILD_TYPE=Release LATEST=true
 before_install:
 # - if [[ $TRAVIS_OS_NAME == osx ]]; then brew update && brew install gmp; fi
+- LEAN_COMMIT=`cat lean_version`
 - mkdir -p $HOME/lean
 - pushd $HOME/lean
 - ls .git || (git init && git remote add origin https://github.com/leanprover/lean.git)
@@ -63,7 +64,7 @@ before_install:
      curl https://leanprover.github.io/lean-nightly/build/lean-nightly-linux.tar.gz | tar xz -C ..
      export PATH=../lean-nightly-linux/bin:$PATH
    else
-     git checkout eef29f6a3164e5ded22ea690f036b5d8bd2df9c5
+     git checkout $LEAN_COMMIT
    fi
 - mkdir -p build
 - cd build

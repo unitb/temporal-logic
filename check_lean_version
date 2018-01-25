@@ -1,0 +1,18 @@
+#!/usr/bin/env stack
+-- stack --resolver lts-9.13 --install-ghc runghc --package MissingH
+
+import Control.Monad
+import Data.Char
+import Data.String.Utils
+import System.Exit
+import System.Process
+
+main = do
+  xs <- readProcess "lean" ["-v"] ""
+  let hash = takeWhile isAlphaNum $ dropWhile (/= "commit") (words xs) !! 1
+  expected <- strip <$> readFile "lean_version"
+  let expected' = take 12 expected
+  unless (expected' == hash) $ do
+    putStrLn "Wrong version of Lean found, expecting:"
+    putStrLn $ "> " ++ expected
+    exitFailure
