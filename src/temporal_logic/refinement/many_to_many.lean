@@ -26,10 +26,10 @@ abbreviation ae' (i : aevt) : event (γ×α×aevt) :=
 { p := cs₀ i!⟨prod.map_right fst⟩
 , q := fs₀ i!⟨prod.map_right fst⟩
 , A := λ s s', s.2.2 = i ∧ (A i on prod.map_right fst) s s' }
-abbreviation ce' (i : cevt) : event (γ×β× cevt) :=
+abbreviation ce' (i : cevt) (j : aevt) : event (γ×β×cevt×aevt) :=
 { p := cs₁ i!⟨prod.map_right fst⟩
 , q := fs₁ i!⟨prod.map_right fst⟩
-, A := λ s s', s.2.2 = i ∧ (C i on prod.map_right fst) s s' }
+, A := λ ⟨o,v,ce,_⟩ ⟨o',v',_,ae'⟩, ae' = j ∧ ce = i ∧ C i (o,v) (o',v') }
 
 section specs
 
@@ -359,8 +359,8 @@ lemma Hpo' (e : aevt)
 : many_to_many_po'
      (subtype (ref e)) (SPEC₂ v o sch_c ⋀ Wtn ⦃sch_a,w⦄ ⋀ ◻(J ! ⦃o,w,v⦄))
      (wit e)
-     (λ i, ce' i) (ae e)
-     ⦃o,v,sch_c⦄ ⦃o,w⦄
+     (λ i, ce' i e) (ae e)
+     ⦃o,v,sch_c,sch_a⦄ ⦃o,w⦄
 :=
 begin
   have
@@ -391,11 +391,9 @@ begin
     persistent,
     henceforth at ⊢ this Hw hJ,
     explicit'
-    { intros, cases Hw,
-      subst w', subst sch_a', subst sch_c,
-      apply this _ _, auto, cc,
-      apply_epsilon_spec, admit,
-      simp, apply SIM ; auto, },
+    { intros, cases Hw, simp only [ce'._match_2,ce'._match_1] at *,
+      casesm* _ ∧ _,
+      apply this _ _ ; tauto <|> cc, },
   end
 end
 
