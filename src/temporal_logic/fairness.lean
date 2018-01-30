@@ -167,6 +167,6 @@ end
 
 end splitting
 end splitting
-export splitting (splitting many_to_many_po)
+export splitting (splitting many_to_many_po many_to_many_po')
 end fairness
 end temporal

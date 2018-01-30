@@ -49,7 +49,11 @@ def next (p : tvar α) : tvar α :=
 def pair {α β} (x : tvar α) (y : tvar β) : tvar (α × β) :=
 lifted₂ prod.mk x y
 
-notation `⦃` x `,` l:(foldl `,` (h t, pair h t) x `⦄`)  := l
+notation `⦃` x₀ `,` x₁ `⦄` := pair x₀ x₁
+notation `⦃` x₀ `,` x₁ `,` x₂ `⦄` := pair x₀ (pair x₁ x₂)
+notation `⦃` x₀ `,` x₁ `,` x₂ `,` x₃ `⦄` := pair x₀ (pair x₁ (pair x₂ x₃))
+notation `⦃` x₀ `,` x₁ `,` x₂ `,` x₃ `,` x₄ `⦄` := pair x₀ (pair x₁ (pair x₂ (pair x₃ x₄)))
+-- notation `⦃` x `,` l:(foldl `,` (h t, pair h t) x `⦄`)  := l
 
 prefix `⊙`:90 := next
 prefix `◇`:95 := eventually -- \di

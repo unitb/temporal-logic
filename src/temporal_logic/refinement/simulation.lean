@@ -19,11 +19,11 @@ parameters (J : pred' (γ×α×β))
 variables (x : tvar α) (y : tvar β) (z : tvar γ)
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
-p ! ⦃ v,o ⦄ ⋀
+p ! ⦃ o,v ⦄ ⋀
 ◻⟦ o,v | A ⟧
 
 def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
-q ! ⦃ v,o ⦄ ⋀
+q ! ⦃ o,v ⦄ ⋀
 ◻⟦ o,v | C ⟧
 
 parameters [inhabited α]
@@ -59,7 +59,7 @@ w ≃ Wx₀ ⋀ ◻(⊙w ≃ Wf w)
 include SIM₀
 
 lemma init_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ q!⦃v,o⦄ ⟶ p!⦃w,o⦄ :=
+: Γ ⊢ ∀∀ w, Wtn w ⟶ q!⦃o,v⦄ ⟶ p!⦃o,w⦄ :=
 begin
   lifted_pred [nat.sub_self,Wtn] ,
   introv Hq, intros, simp [Hq,Wx₀,Wx₀_f],
@@ -69,7 +69,7 @@ end
 set_option trace.app_builder true
 include H SIM
 lemma J_inv_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃v,w,o⦄) :=
+: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃o,w,v⦄) :=
 begin [temporal]
   introv Hw,
   apply induct _ _ _ _,

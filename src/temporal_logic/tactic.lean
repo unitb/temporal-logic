@@ -8,6 +8,7 @@ import tactic
 
 import temporal_logic.basic
 import temporal_logic.persistent
+import temporal_logic.pair
 
 open predicate
 
@@ -85,18 +86,18 @@ do mmap' (get_local ∘ expr.local_pp_name) e.list_local_const
 meta def type_check_result (msg : format) : tactic unit :=
 result >>= type_check <|> fail msg
 
+meta def mk_tmp_app {α} [has_to_pexpr α] (e₀ : expr) (e₁ : α) : temporal expr :=
+do t ← infer_type e₀,
+   (do e' ← to_expr (to_pexpr e₁), e₀ e' <$ type_check (e₀ e'))
+   <|> to_expr ``(p_impl_revert %%e₀ %%e₁)
+   <|> to_expr ``(henceforth_deduction %%e₀ %%e₁)
+   <|> to_expr ``(p_forall_revert %%e₀ %%e₁)
+
 meta def t_to_expr' : pexpr → temporal expr
 | e@(expr.app e₀ e₁) :=
    to_expr e <|>
 do e' ← t_to_expr' e₀,
-   guarded
-     [ ( to_expr ``(%%e' : _ ⊢ _ ⟶ _) >>= type_check
-       , to_expr ``(p_impl_revert %%e' %%e₁))
-     , ( to_expr ``(%%e' : _ ⊢ ◻(_ ⟶ _)) >>= type_check
-       , to_expr ``(henceforth_deduction %%e' %%e₁))
-     , ( to_expr ``(%%e' : _ ⊢ p_forall _) >>= type_check
-       , to_expr ``(p_forall_revert %%e' %%e₁))
-     , (return (), fail "wrong") ]
+   mk_tmp_app e' e₁
 | e := to_expr e
 
 meta def t_to_expr (q : pexpr) : temporal expr :=
@@ -213,17 +214,24 @@ with_enable_tags $
 do t ← get_main_tag,
    tac <* set_main_tag t
 
-meta def uniform_assumptions (Γ h : expr) : temporal unit :=
+/-- `fix_assumptions Γ h` takes assumptions and reformulate it so that its type is
+    `Γ ⊢ _`. It replaces `∀ _, Γ ⊢ _` with `Γ ⊢ ∀∀ _, _` and `_ → Γ ⊢ _` with
+    `Γ ⊢ _ ⟶ _`.
+  -/
+meta def fix_assumptions (Γ h : expr) : temporal expr :=
 do t ← infer_type h,
-   (some r) ← try_core (uniform_assumptions' Γ h t) | clear h,
+   (some r) ← try_core (uniform_assumptions' Γ h t),
    match r with
     | (some (pr,t)) :=
           do  p ← to_expr ``(%%Γ ⊢ %%t),
-              protect_tags (do
-                assertv h.local_pp_name p pr,
-                clear h)
-    | none := return ()
+              protect_tags (
+                assertv h.local_pp_name p pr
+                <* clear h)
+    | none := return h
    end
+
+meta def fix_or_clear_assumption (Γ h : expr) : temporal unit :=
+() <$ fix_assumptions Γ h <|> tactic.clear h
 
 meta def semantic_assumption (τ h : expr) : temporal ℕ :=
 do `(%%τ' ⊨ _) ← infer_type h | return 0,
@@ -249,7 +257,7 @@ do intros,
      | `(⊩ _) := () <$ tactic.intro `Γ
      | `(_ ⟹ _) := () <$ tactic.intro `Γ
      | `(∀ Γ : pred' _, Γ ⊢ _) := () <$ tactic.intro `Γ
-     | `(%%Γ ⊢ _) := local_context >>= mmap' (uniform_assumptions Γ)
+     | `(%%Γ ⊢ _) := local_context >>= mmap' (fix_or_clear_assumption Γ)
      | _ := to_expr ``(⊩ _) >>= tactic.change >> () <$ tactic.intro `Γ
           <|> refine ``(@id (_ ⊨ _) _) >> sem_to_syntactic
           <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
@@ -765,6 +773,31 @@ do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
    w ← (match_expr ``(tvar %%t) t' >> (bind_name e v id) <|> return e),
    refine ``(p_exists_to_fun %%w _)
 
+meta def specialized_apply (t : expr) : expr → temporal unit
+ | e :=
+do t' ← infer_type e,
+   type_check e,
+   if sizeof t' < sizeof t then () <$ tactic.apply e
+   else
+     () <$ tactic.apply e <|>
+   do
+     v ← mk_mvar,
+     e' ← mk_tmp_app e v,
+     specialized_apply e'
+
+meta def apply (e : expr) : temporal unit :=
+do g :: gs ← get_goals,
+   t ← target,
+   specialized_apply t e
+         <|> interactive.strengthening (specialized_apply t e)
+         <|> () <$ tactic.apply e,    -- we try `tactic.apply l` again
+                                      -- knowing that if we go back to
+                                      -- it, it will fail and we'll have
+                                      -- a proper error message
+   gs' ← get_goals, set_goals gs',
+   all_goals (try (execute (pure ()))),
+   gs' ← get_goals, set_goals (gs' ++ gs)
+
 namespace interactive
 open lean.parser interactive interactive.types lean
 open expr tactic.interactive (rcases_parse rcases_parse.invert)
@@ -810,6 +843,71 @@ do `(%%Γ ⊢ _) ← target,
      tactic.clear Γ,
      tac)
 
+meta def list_state_vars (t : expr) : tactic (list expr) :=
+do ls ← local_context,
+   pat ← pexpr_to_pattern ``(var %%t _),
+   ls.mfilter (λ v, do t ← infer_type v,
+                       tt <$ match_pattern pat t <|> pure ff)
+
+meta def reverting {α} (h : expr → tactic bool) (tac : tactic α) : tactic α :=
+do ls ← local_context,
+   hs ← ls.mfilter h,
+   tactic.revert_lst hs,
+   tac <* tactic.intro_lst (hs.map expr.local_pp_name)
+
+meta def rename' (curr : expr) (new : name) : tactic expr :=
+do n ← tactic.revert curr,
+   tactic.intro new
+   <* tactic.intron (n - 1)
+
+meta def subst_state_variables (σ : expr) : tactic unit :=
+do vs ← list_state_vars `(ℕ),
+   let ns := name_set.of_list (vs.map expr.local_uniq_name),
+   vs' ← reverting (λ h, do t ← infer_type h, return $ t.has_local_in ns) (do
+   vs.mmap $ λ v, do
+     let n := v.local_pp_name,
+     let n_primed := update_name (λ s, s ++ "'") v.local_pp_name,
+     n' ← mk_fresh_name,
+     v ← rename' v n',
+     p ← to_expr ``(%%σ ⊨ %%v),
+     try (generalize p n >> intro1),
+     p' ← to_expr ``(nat.succ %%σ ⊨ %%v),
+     try (generalize p' n_primed >> intro1),
+     return v),
+   ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
+   ls.for_each (λ h, do -- trace "deleting",
+                        t ← infer_type h >>= pp,
+                        -- trace format!"{h} : {t}",
+                        tactic.clear h),
+   tactic.clear σ,
+   mmap' tactic.clear vs'
+
+open function
+meta def explicit'
+  (rs : parse simp_arg_list)
+  (tac : tactic.interactive.itactic) : temporal unit :=
+do `(%%Γ ⊢ _) ← target,
+   let st := `σ,
+   asms ← get_assumptions,
+   constructor,
+   st ← tactic.intro st,
+   hΓ ← tactic.intro `hΓ,
+   asms.for_each (λ h, do
+     e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
+     note h.local_pp_name none e,
+     tactic.clear h),
+   let rs' := map simp_arg_type.expr [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)] ++ rs,
+   let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
+   repeat (
+       tactic.interactive.simp none ff rs' [`predicate] l
+       <|> unfold_coes l),
+   done <|> solve1 (do
+     tactic.clear hΓ,
+     try (to_expr ``(temporal.persistent %%Γ) >>= mk_instance >>= tactic.clear),
+     tactic.clear Γ,
+     subst_state_variables st,
+     tac)
+
 meta def same_type (e₀ e₁ : expr) : temporal unit :=
 do t₀ ← infer_type e₀,
    t₁ ← infer_type e₁,
@@ -817,7 +915,10 @@ do t₀ ← infer_type e₀,
 
 meta def «let» := tactic.interactive.«let»
 
-meta def «have»  (h : parse ident?) (q₁ : parse (tk ":" *> texpr)?) (q₂ : parse $ (tk ":=" *> texpr)?) : tactic expr :=
+meta def «have»  (h : parse ident?)
+                 (q₁ : parse (tk ":" *> texpr)?)
+                 (q₂ : parse $ (tk ":=" *> texpr)?)
+: tactic expr :=
 let h := h.get_or_else `this in
 match q₁, q₂ with
 | some e, some p := do
@@ -827,8 +928,10 @@ match q₁, q₂ with
   v ← t_to_expr ``(%%p : %%t'),
   tactic.assertv h t' v
 | none, some p := do
+  `(%%Γ ⊢ _) ← target,
   p ← t_to_expr p,
-  temporal.note h none p
+  h ← temporal.note h none p,
+  (fix_assumptions Γ h) <|> return h
 | some e, none := do
   `(%%Γ ⊢ _) ← target,
   e' ← i_to_expr e,
@@ -862,17 +965,11 @@ meta def exact (e : parse texpr) : temporal unit :=
 tactic.interactive.exact e
 
 meta def refine (e : parse texpr) : temporal unit :=
-tactic.interactive.refine e
+do t ← target,
+   t_to_expr ``(%%e : %%t) >>= tactic.exact
 
 meta def apply (q : parse texpr) : temporal unit :=
-focus1 $
-do l ← t_to_expr_for_apply q,
-   () <$ tactic.apply l <|> strengthening (() <$ tactic.apply l)
-                        <|> () <$ tactic.apply l, -- we try `tactic.apply l` again
-                                                  -- knowing that if we go back to
-                                                  -- it, it will fail and we'll have
-                                                  -- a proper error message
-   all_goals (try $ execute (pure ()))
+t_to_expr_for_apply q >>= temporal.apply
 
 meta def trivial : temporal unit :=
 `[apply of_eq_true (True_eq_true _)]
@@ -918,10 +1015,31 @@ do let h₀ : name := (ids.nth 0).get_or_else `a,
    apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
    ; [ intros [h₀] , intros [h₁] ],
    tactic.swap
-#check congr_arg
+
+meta def cases_dt  (e : parse cases_arg_p) (ids : parse with_ident_list) : temporal unit :=
+do e' ← to_expr e.2,
+   t ← infer_type e',
+   let h₀ : name := (ids.nth 0).get_or_else `a,
+   let h₁ : name := (ids.nth 1).get_or_else `a,
+   (do match_expr ``(tvar (_ × _)) t,
+       reverting (λ h, do t ← infer_type h, return $ e'.occurs t) $ do
+       h ← to_expr ``(eta_pair %%e') >>= note `h none,
+       tactic.revert h,
+       e' ← if e'.is_local_constant
+       then mk_fresh_name >>= rename' e'
+       else return e',
+       to_expr ``(pair.fst ! %%e') >>= λ e, tactic.generalize e h₀ >> intro1,
+       to_expr ``(pair.snd ! %%e') >>= λ e, tactic.generalize e h₁ >> intro1,
+       h ← intro1,
+       z ← if e'.is_local_constant then return e'
+       else tactic.generalize e' `z >> intro1,
+       tactic.subst z )
+<|>
+   tactic.interactive.cases e ids
+
 meta def cases (e : parse cases_arg_p) (ids : parse with_ident_list) : temporal unit :=
 do p' ← to_expr e.2,
-   (some (Γ,p,q)) ← sequent_type p' | tactic.interactive.cases e ids,
+   (some (Γ,p,q)) ← sequent_type p' | cases_dt e ids,
    match q with
     | `(◻(%%a ⋀ %%b)) := do
       p₁ ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (henceforth_and %%a %%b)) %%p),
@@ -957,18 +1075,13 @@ any_hyp $ λ h, do
   ps.mfirst $ λ p, do
   match_pattern p type,
   return h
-
-meta def rename' (curr : expr) (new : name) : tactic unit :=
-do n ← tactic.revert curr,
-   tactic.intro new,
-   tactic.intron (n - 1)
-
+open temporal.interactive (rename')
 meta def select (h : parse $ ident <* tk ":") (p : parse texpr) : temporal unit :=
 do `(%%Γ ⊢ _) ← target,
    p₀ ← pexpr_to_pattern ``(%%Γ ⊢ %%p),
    p₁ ← pexpr_to_pattern p,
-   any_hyp (λ h', infer_type h' >>= match_pattern p₀ >> rename' h' h)
-     <|> any_hyp (λ h', infer_type h' >>= match_pattern p₁ >> rename' h' h)
+   any_hyp (λ h', infer_type h' >>= match_pattern p₀ >> () <$ rename' h' h)
+     <|> any_hyp (λ h', infer_type h' >>= match_pattern p₁ >> () <$ rename' h' h)
 
 meta def cases_matching (rec : parse $ (tk "*")?) (ps : parse pexpr_list_or_texpr) : temporal unit :=
 do `(%%Γ ⊢ _) ← target,
@@ -1007,7 +1120,7 @@ meta def induction
 : tactic unit :=
 do `(%%Γ ⊢ _) ← target,
    (tactic.interactive.induction obj rec_name ids revert) ;
-     (local_context >>= mmap' (uniform_assumptions Γ))
+     (local_context >>= mmap' (fix_or_clear_assumption Γ))
 
 meta def case (ctor : parse ident*) (ids) (tac : itactic) : tactic unit :=
 tactic.interactive.case ctor ids tac
@@ -1090,8 +1203,45 @@ tactic.interactive.lifted_pred ff no_dflt rs us
 meta def propositional : temporal unit :=
 tactic.interactive.propositional
 
-meta def assumption : temporal unit :=
-xassumption <|> strengthening xassumption
+meta def match_head (e : expr) : expr → tactic unit
+| e' :=
+    unify e e'
+<|> (do `(_ → %%e') ← whnf e',
+        v ← mk_mvar,
+        match_head (e'.instantiate_var v))
+<|> (do `(%%Γ ⊢ _ ⟶ %%e') ← whnf e',
+        e'' ← to_expr ``(%%Γ ⊢ %%e'),
+        match_head e'')
+<|> (do `(%%Γ ⊢ p_forall %%(expr.lam _ _ t e')) ← whnf e',
+        v ← mk_meta_var t,
+        e'' ← to_expr ``(%%Γ ⊢ %%(e'.instantiate_var v)),
+        match_head e'')
+
+meta def find_matching_head : expr → list expr → tactic (list expr)
+| e []         := return []
+| e (H :: Hs) :=
+  do t ← infer_type H,
+     (list.cons H <$ match_head e t <|> pure id) <*> find_matching_head e Hs
+
+meta def xassumption
+  (asms : option (list expr) := none)
+  (tac : temporal unit := return ()) : tactic unit :=
+do { ctx ← asms.to_monad <|> local_context,
+     t   ← target,
+     hs   ← find_matching_head t ctx,
+     hs.any_of (λ H, (() <$ temporal.apply H ; tac : temporal unit)) } <|>
+do { exfalso,
+     ctx ← asms.to_monad <|> local_context,
+     t   ← target,
+     hs   ← find_matching_head t ctx,
+     hs.any_of (λ H, (() <$ temporal.apply H ; tac : temporal unit)) }
+<|> fail "assumption tactic failed"
+
+
+/- TODO(Simon) Use  -/
+meta def assumption (tac : temporal unit := return ()) : temporal unit :=
+do `(_ ⊢ _) ← target | tactic.xassumption none tac,
+   xassumption none tac <|> strengthening (xassumption none tac)
 
 meta def try (tac : itactic) : temporal unit :=
 tactic.try tac
@@ -1141,11 +1291,11 @@ do `(%%Γ ⊢ %%p ⋁ %%q) ← target,
    apply ``(p_or_intro_right %%p %%q %%Γ _)
 
 meta def auto : temporal unit :=
-assumption ; assumption ; assumption ; done
+assumption $ assumption $ assumption done
 
 meta def tauto : temporal unit :=
 () <$ intros [] ;
-casesm (some ()) [``(_ ⋀ _),``(_ ⋀ _)] ;
+casesm (some ()) [``(_ ⋀ _),``(_ ⋁ _)] ;
 split (some ()) ;
 auto
 
@@ -1232,7 +1382,8 @@ lemma witness_elim {α} {P : tvar α → cpred} {Γ : cpred}
 begin [temporal]
   have := witness x₀ f Γ,
   revert this,
-  apply p_exists_p_imp_p_exists _ _ h,
+  apply p_exists_p_imp_p_exists,
+  auto
 end
 
 meta def select_witness

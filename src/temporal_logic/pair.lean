@@ -12,7 +12,7 @@ variables (x : tvar α') (y : tvar β') (z : tvar γ')
 
 @[simp]
 lemma pair_model (i : ℕ) :
-i ⊨ ⦃x,y⦄ = (i ⊨ y,i ⊨ x) :=
+i ⊨ ⦃x,y⦄ = (i ⊨ x,i ⊨ y) :=
 by { cases x, cases y, refl }
 
 @[reducible]
@@ -25,22 +25,22 @@ def pair.snd : var (α' × β') β' :=
 
 @[simp]
 def pair.fst_mk (x : tvar α') (y : tvar β')
-: pair.fst ! ⦃y,x⦄ = x :=
+: pair.fst ! ⦃x,y⦄ = x :=
 by lifted_pred
 
 @[simp]
 def pair.fst_mk' (x : tvar α') (y : tvar β')
-: ⟨ @prod.fst α' β' ⟩ ! ⦃y,x⦄ = x :=
+: ⟨ @prod.fst α' β' ⟩ ! ⦃x,y⦄ = x :=
 pair.fst_mk _ _
 
 @[simp]
 def pair.snd_mk (x : tvar α') (y : tvar β')
-: pair.snd ! ⦃y,x⦄ = y :=
+: pair.snd ! ⦃x,y⦄ = y :=
 by lifted_pred
 
 @[simp]
 def pair.snd_mk' (x : tvar α') (y : tvar β')
-: ⟨ @prod.snd α' β' ⟩ ! ⦃y,x⦄ = y :=
+: ⟨ @prod.snd α' β' ⟩ ! ⦃x,y⦄ = y :=
 by lifted_pred
 
 @[simp]
@@ -53,23 +53,23 @@ def prod.map_right {α β γ} (f : β → γ) : α × β → α × γ
 open temporal.prod
 
 @[simp]
-lemma map_right_proj_pair (f : α' → γ')
-: ⟨map_right f⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x, y⦄ :=
+lemma map_right_proj_pair (f : β' → γ')
+: ⟨map_right f⟩ ! ⦃x,y⦄ = ⦃x, ⟨f⟩ ! y⦄ :=
 by ext i ; simp [map_right]
 
 @[simp]
 lemma map_left_proj_pair (f : α' → γ')
-: ⟨map_left f⟩ ! ⦃y,x⦄ = ⦃y, ⟨f⟩ ! x⦄ :=
+: ⟨map_left f⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x, y⦄ :=
 by ext i ; simp [map_left]
 
 @[simp]
 lemma map_proj_pair (f : α' → γ') (g : β' → ω)
-: ⟨prod.map f g⟩ ! ⦃y,x⦄ = ⦃⟨g⟩ ! y, ⟨f⟩ ! x⦄ :=
+: ⟨prod.map f g⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x,⟨g⟩ ! y⦄ :=
 by ext i ; simp [prod.map]
 
 @[simp]
 lemma eta_pair (w : tvar (α' × β'))
-: ⦃pair.snd ! w, pair.fst ! w⦄ = w :=
+: ⦃pair.fst ! w, pair.snd ! w⦄ = w :=
 by ext i ; simp [prod.map]
 
 @[simp]
