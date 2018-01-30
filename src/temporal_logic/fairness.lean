@@ -107,10 +107,10 @@ many_to_many_po S w
   (p₁!av) (q₁!av) ⟦ av | A₁ ⟧
 
 parameters {t}
-parameters w p q A : t → cpred
-parameters p' q' A' S : cpred
+parameters {w p q A : t → cpred}
+parameters {p' q' A' S : cpred}
 parameters po : many_to_many_po S w p q A p' q' A'
-parameters Γ : cpred
+parameters {Γ : cpred}
 parameters hS : Γ ⊢ S
 
 -- variables H₀ : Γ ⊢ ∀∀ i, ◻◇(p' ⋀ q' ⋀ w i) ⟶ ◻◇p i ⋀ q i ⋀ w i

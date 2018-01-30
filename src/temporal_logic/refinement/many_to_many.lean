@@ -364,27 +364,21 @@ lemma Hpo' (e : aevt)
 :=
 begin
   have
-  : temporal.many_to_many.SPEC₂ v o sch_c ⋀
-      temporal.many_to_many.Wtn ⦃sch_a,w⦄ ⋀
+  : temporal.many_to_many.SPEC₂ v o sch_c ⋀ temporal.many_to_many.Wtn ⦃sch_a,w⦄ ⋀
       ◻(J ! ⦃o,w,v⦄) ⟹
-    temporal.many_to_many.SPEC₁ v o ⋀
-      temporal.many_to_many.SPEC₀.saf w o ⋀
+    temporal.many_to_many.SPEC₁ v o ⋀ temporal.many_to_many.SPEC₀.saf w o ⋀
       ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
-    simp, intros h₀ h₁ h₂,
-    split*,
-    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ;
-      try { auto }, },
-    { clear Hpo,
-      apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁,
-      auto, },
+    simp, intros h₀ h₁ h₂, split*,
+    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; try { auto }, },
+    { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, auto, },
     { auto }
   end,
   constructor ;
   try { cases (Hpo e w),
         transitivity, apply this,
-        simp at *,
-        auto, },
+        simp at *, auto, },
+  clear this,
   begin [temporal]
     intros,
     casesm* _ ⋀ _,
@@ -414,23 +408,19 @@ lemma sched_ref (i : aevt) -- (w : tvar (aevt × α))
  (h : Γ ⊢ ∀∀ j, ref i j ⟶ sched (cs₁ j ! ⦃o,v⦄) (fs₁ j ! ⦃o,v⦄) (sch_c ≃ ↑j ⋀ ⟦ o,v | C j ⟧))
 : Γ ⊢ sched (cs₀ i ! ⦃o,w⦄) (fs₀ i ! ⦃o,w⦄) ⟦ o,w | A i ⟧ :=
 begin [temporal]
-  admit
-  -- have H' := one_to_one.H' C v o sch _ H,
-  -- have hJ : ◻(J ! ⦃o,w,v⦄),
-  -- { replace SIM₀ := SIM₀' _ SIM₀,
-  --   replace SIM := SIM' A C J SIM,
-  --   apply simulation.J_inv_in_w p' q' (Next_a A) _ (J' J) SIM₀ SIM _ o _ H' w Hw },
-  -- simp [J'] at hJ, cases hJ with hJ hJ',
-  -- have Hpo' := Hpo' p q A C cs₁ fs₁ J _ _ _ o sch Hpo (pair.snd ! w) i ; try { auto },
-  -- apply replacement Hpo' Γ _ _,
-  -- clear Hpo Hpo' SIM SIM₀,
-  -- have : ◻ (⦃pair.snd ! w,sch⦄ ≃ w),
-  -- { persistent,
-  --   henceforth at hJ' ⊢,
-  --   explicit
-  --   { clear_except hJ', simp [J'._match_1] at ⊢ hJ',
-  --     rw ← hJ', simp } },
-  -- rw [this], tauto, auto,
+  have hJ : ◻(J ! ⦃o,w,v⦄),
+  { apply temporal.many_to_many.J_inv_in_w ; auto },
+  apply splitting (Hpo i w) _ _,
+  { split*,
+    apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; auto,
+    apply temporal.many_to_many.witness_imp_SPEC₀_saf ; auto,
+    auto },
+  intro ce, cases ce with ce Hce,
+  simp only, intros H₀ H₁,
+  replace h := h ce Hce H₀ H₁,
+  revert h,
+  monotonicity only,
+  lifted_pred,
 end
 
 lemma many_to_many
@@ -507,7 +497,7 @@ begin [temporal]
     intro v,
     apply refinement_SPEC₁, },
   { simp, intros c sch Hspec,
-    specialize h c, -- simp [one_to_one_po'] at h,
+    specialize h c,
     apply temporal.many_to_many.refinement_SPEC₂ c o Γ h,
     existsi sch, exact Hspec, },
 end
