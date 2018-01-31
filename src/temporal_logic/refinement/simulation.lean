@@ -133,6 +133,7 @@ end simulation
 
 export simulation (simulation simulation')
 
+namespace witness_construction
 section witness_construction
 
 parameters {α : Sort u}
@@ -189,6 +190,7 @@ begin
   { simp [SPEC₁,C], }
 end
 
+end witness_construction
 end witness_construction
 
 end temporal

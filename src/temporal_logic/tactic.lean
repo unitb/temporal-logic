@@ -118,15 +118,18 @@ in match q with
 | _                          := t_to_expr q
 end
 
-meta def beta_reduction' : expr → temporal expr
+meta def beta_reduction' (eta := ff) : expr → temporal expr
  | (expr.app e₀ e₁) :=
  do e₁ ← beta_reduction' e₁,
     e₀ ← beta_reduction' e₀,
     head_beta $ expr.app e₀ e₁
- | e := expr.traverse beta_reduction' e >>= head_eta
+ | e := do z ← expr.traverse beta_reduction' e,
+           if eta then head_eta z
+                  else return z
 
-meta def beta_reduction (e : expr) : temporal expr :=
-instantiate_mvars e >>= beta_reduction'
+
+meta def beta_reduction (e : expr) (eta := ff) : temporal expr :=
+instantiate_mvars e >>= beta_reduction' eta
 
 meta def succeeds {α} (tac : temporal α) : temporal bool :=
 tt <$ tac <|> pure ff
@@ -868,7 +871,7 @@ do vs ← list_state_vars `(ℕ),
      let n := v.local_pp_name,
      let n_primed := update_name (λ s, s ++ "'") v.local_pp_name,
      n' ← mk_fresh_name,
-     v ← rename' v n',
+     v ← rename v.local_pp_name n' >> get_local n',
      p ← to_expr ``(%%σ ⊨ %%v),
      try (generalize p n >> intro1),
      p' ← to_expr ``(nat.succ %%σ ⊨ %%v),
@@ -1073,8 +1076,9 @@ private meta def find_matching_hyp (ps : list pattern) : tactic expr :=
 any_hyp $ λ h, do
   type ← infer_type h,
   ps.mfirst $ λ p, do
-  match_pattern p type,
-  return h
+    match_pattern p type,
+    return h
+
 open temporal.interactive (rename')
 meta def select (h : parse $ ident <* tk ":") (p : parse texpr) : temporal unit :=
 do `(%%Γ ⊢ _) ← target,
@@ -1084,9 +1088,8 @@ do `(%%Γ ⊢ _) ← target,
      <|> any_hyp (λ h', infer_type h' >>= match_pattern p₁ >> () <$ rename' h' h)
 
 meta def cases_matching (rec : parse $ (tk "*")?) (ps : parse pexpr_list_or_texpr) : temporal unit :=
-do `(%%Γ ⊢ _) ← target,
-   ps ← lift₂ (++) (ps.mmap pexpr_to_pattern)
-                   (ps.mmap $ λ p, pexpr_to_pattern ``(%%Γ ⊢ %%p)),
+do ps ← lift₂ (++) (ps.mmap pexpr_to_pattern)
+                   (ps.mmap $ λ p, pexpr_to_pattern ``(_ ⊢ %%p)),
    if rec.is_none
    then find_matching_hyp ps >>= cases_core
    else tactic.focus1 $ tactic.repeat $ find_matching_hyp ps >>= cases_core
@@ -1524,7 +1527,7 @@ do `(%%Γ ⊢ _) ← target,
      try $ temporal.interactive.simp tt [] [`predicate] (loc.ns [none]) ,
      try $ tactic.interactive.TL_unfold [`init] (loc.ns [none]),
      try $ tactic.interactive.generalize none () (``(%%τ 0),`σ),
-     target >>= beta_reduction >>= change,
+     target >>= (λ e, beta_reduction e tt) >>= change,
      intro_lst n,
      tac),
    tactic.revert h',

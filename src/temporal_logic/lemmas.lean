@@ -118,6 +118,11 @@ lemma const_action (c : Prop) (v : tvar α)
 by { refl }
 
 @[simp, predicate]
+lemma models_coe (σ : α) (x : β)
+: σ ⊨ ↑x = x :=
+by { refl }
+
+@[simp, predicate]
 lemma models_action (A : act α) (v : tvar α) (i : ℕ)
 : i ⊨ ⟦ v | A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
 by { refl }

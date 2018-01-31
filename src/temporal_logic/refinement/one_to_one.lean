@@ -15,8 +15,11 @@ parameters (A : evt → act (γ×α)) (C : evt → act (γ×β))
 parameters {cs₀ fs₀ : evt → pred' (γ×α)} {cs₁ fs₁ : evt → pred' (γ×β)}
 parameters (J : pred' (γ×α×β))
 
+def C' (e : evt) : act (evt×γ×β) :=
+λ ⟨sch,s⟩ ⟨_,s'⟩, sch = e ∧ C e s s'
+
 abbreviation ae (i : evt) : event (γ×α) := ⟨cs₀ i,fs₀ i,A i⟩
-abbreviation ce (i : evt) : event (γ×β) := ⟨cs₁ i,fs₁ i,C i⟩
+abbreviation ce (i : evt) : event (evt×γ×β) := ⟨cs₁ i!pair.snd,fs₁ i!pair.snd,C' i⟩
 
 section specs
 
@@ -25,6 +28,10 @@ parameters p q cs₀ fs₀ cs₁ fs₁
 def SPEC₀.saf (v : tvar α) (o : tvar γ) : cpred :=
 p ! ⦃ o,v ⦄ ⋀
 ◻(∃∃ i, ⟦ o,v | A i ⟧)
+
+def SPEC₀.saf' (v : tvar α) (o : tvar γ) (sch : tvar evt) : cpred :=
+p ! ⦃ o,v ⦄ ⋀
+◻(∃∃ i, sch ≃ ↑i ⋀ ⟦ o,v | A i ⟧)
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
 SPEC₀.saf v o ⋀
@@ -57,9 +64,9 @@ variable (Γ : cpred)
 
 parameters β γ
 
-variable Hpo : ∀ w e,
-  one_to_one_po' (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃o,w,v⦄))
-     (ce e) (ae e) ⦃o,v⦄ ⦃o,w⦄
+variable Hpo : ∀ w e sch,
+  one_to_one_po' (SPEC₁ v o ⋀ SPEC₀.saf' w o sch ⋀ ◻(J ! ⦃o,w,v⦄))
+     (ce e) (ae e) ⦃sch,o,v⦄ ⦃o,w⦄
 
 parameters {β γ}
 
@@ -155,7 +162,7 @@ end
 include SIM₀ SIM
 lemma witness_imp_SPEC₀_saf
   (h : Γ ⊢ Wtn w)
-: Γ ⊢ SPEC₀.saf w o :=
+: Γ ⊢ SPEC₀.saf' w o sch :=
 begin [temporal]
   have hJ := J_inv_in_w p' q'
                         temporal.one_to_one.Next_a temporal.one_to_one.Next_c
@@ -164,7 +171,7 @@ begin [temporal]
                         temporal.one_to_one.SIM'
                         v ⦃o,sch⦄ Γ
                         (temporal.one_to_one.H' _ H) _ h,
-  simp [SPEC₀.saf,SPEC₂,Wtn,simulation.Wtn] at h ⊢ H,
+  simp [SPEC₀.saf',SPEC₂,Wtn,simulation.Wtn] at h ⊢ H,
   casesm* _ ⋀ _,
   split,
   { clear SIM hJ,
@@ -262,7 +269,7 @@ lemma Hpo' (e : evt)
 begin
   have
   : temporal.one_to_one.SPEC₂ v o sch ⋀ temporal.one_to_one.Wtn w ⋀ ◻(J ! ⦃o,w,v⦄) ⟹
-    temporal.one_to_one.SPEC₁ v o ⋀ temporal.one_to_one.SPEC₀.saf w o ⋀ ◻(J ! ⦃o,w,v⦄),
+    temporal.one_to_one.SPEC₁ v o ⋀ temporal.one_to_one.SPEC₀.saf' w o sch ⋀ ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
     simp, intros h₀ h₁ h₂,
     split*,
@@ -270,12 +277,14 @@ begin
     { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; auto, },
     { auto }
   end,
-  constructor ;
-  try { cases (Hpo w e)
-        ; transitivity
-        ; [ apply this
-          , assumption ] },
-  apply temporal.one_to_one.H_C_imp_A Hpo,
+  constructor,
+  iterate 3
+  { cases (Hpo w e sch),
+    simp at *,
+    transitivity,
+    { apply this },
+    { assumption } },
+  apply temporal.one_to_one.H_C_imp_A Hpo w e,
 end
 
 end Simulation_POs
@@ -347,8 +356,8 @@ lemma refinement_SPEC₂
 : Γ ⊢ (∃∃ sch, SPEC₂ v o sch) ⟶ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   simp, intros sch Hc,
-  apply one_to_one A C J SIM₀ SIM _ _ _ _ _  Hc
-  ; assumption,
+  apply one_to_one A C J SIM₀ SIM _ _ _ _ _  Hc,
+  apply Hpo,
 end
 end refinement_SPEC₂
 
@@ -358,9 +367,9 @@ sorry
 
 include SIM₀ SIM
 lemma refinement
-  (h : ∀ c a e, one_to_one_po' (SPEC₁ c o ⋀ SPEC₀.saf a o ⋀ ◻(J ! ⦃o,a,c⦄))
-         ⟨cs₁ e,fs₁ e,C e⟩
-         ⟨cs₀ e,fs₀ e,A e⟩ ⦃o,c⦄ ⦃o,a⦄)
+  (h : ∀ c a e sch, one_to_one_po' (SPEC₁ c o ⋀ SPEC₀.saf' a o sch ⋀ ◻(J ! ⦃o,a,c⦄))
+         ⟨cs₁ e!pair.snd,fs₁ e!pair.snd,C' e⟩
+         ⟨cs₀ e,fs₀ e,A e⟩ ⦃sch,o,c⦄ ⦃o,a⦄)
 : (∃∃ c, SPEC₁ c o) ⟹ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   transitivity (∃∃ c sch, SPEC₂ q C cs₁ fs₁ c o sch),
@@ -370,6 +379,7 @@ begin [temporal]
   { simp, intros c sch Hspec,
     specialize h c, simp [one_to_one_po'] at h,
     apply refinement_SPEC₂ A C cs₀ fs₀ cs₁ fs₁ J SIM₀ SIM c o _ _ _,
+    simp [one_to_one_po'],
     exact h,
     existsi sch, assumption },
 end
