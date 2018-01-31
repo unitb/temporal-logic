@@ -97,8 +97,8 @@ parameters (t : Sort u)
 structure many_to_many_po (S : cpred) (w p q A : t → cpred) (p' q' A' : cpred) : Prop :=
   (delay : S ⟹ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i)
   (stable : S ⟹ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i))
-  (sim : S ⟹ ∀∀ i, ◻(A i ⟶ A'))
   (wfis : S ⟹ ◻(p' ⋀ q' ⟶ ∃∃ i, w i))
+  (sim : S ⟹ ∀∀ i, ◻(A i ⟶ A'))
 def many_to_many_po' {α β} (S : cpred) (w : t → cpred)
 : (t → event α) → event β → tvar α → tvar β → Prop
 | e ⟨p₁,q₁,A₁⟩ cv av :=

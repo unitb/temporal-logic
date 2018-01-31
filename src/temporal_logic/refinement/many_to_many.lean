@@ -19,6 +19,9 @@ parameter wit : Π a, subtype (ref a) → cpred
 
 open prod
 
+def C' (e : cevt) : act (cevt×γ×β) :=
+λ ⟨sch,s⟩ ⟨_,s'⟩, sch = e ∧ C e s s'
+
 abbreviation ae (i : aevt) : event (γ×α) := ⟨cs₀ i,fs₀ i,A i⟩
 abbreviation ce (i : cevt) : event (γ×β) := ⟨cs₁ i,fs₁ i,C i⟩
 
@@ -38,6 +41,10 @@ parameters p q cs₀ fs₀ cs₁ fs₁
 def SPEC₀.saf (v : tvar α) (o : tvar γ) : cpred :=
 p ! ⦃ o,v ⦄ ⋀
 ◻(∃∃ i, ⟦ o,v | A i ⟧)
+
+def SPEC₀.saf' (v : tvar α) (o : tvar γ) (sch : tvar aevt) : cpred :=
+p ! ⦃ o,v ⦄ ⋀
+◻(∃∃ i, ⊙sch ≃ ↑i ⋀ ⟦ o,v | A i ⟧)
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
 SPEC₀.saf v o ⋀
@@ -74,10 +81,10 @@ parameters (v : tvar β) (o : tvar γ)
 parameters (Γ : cpred)
 
 parameters β γ
-variable Hpo : ∀ (e : aevt) (w : tvar α),
+variable Hpo : ∀ (e : aevt) (w : tvar α) (sch : tvar aevt),
   many_to_many_po'
     (subtype (ref e))
-    (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃o,w,v⦄))
+    (SPEC₁ v o ⋀ SPEC₀.saf' w o sch ⋀ ◻(J ! ⦃o,w,v⦄))
     (wit e)
     (λ e', ce e') (ae e)
     ⦃o,v⦄ ⦃o,w⦄
@@ -265,11 +272,11 @@ end
 
 lemma witness_imp_SPEC₀_saf
   (h : Γ ⊢ Wtn ⦃sch_a,w⦄)
-: Γ ⊢ SPEC₀.saf w o :=
+: Γ ⊢ SPEC₀.saf' w o sch_a :=
 begin [temporal]
   have hJ := temporal.many_to_many.J_inv_in_w sch_a H w valid_witness ,
   clear valid_witness,
-  simp [SPEC₀.saf,SPEC₂,Wtn] at h ⊢ H,
+  simp [SPEC₀.saf',SPEC₂,Wtn] at h ⊢ H,
   casesm* _ ⋀ _,
   split,
   { clear SIM,
@@ -287,9 +294,9 @@ begin [temporal]
     persistent,
     henceforth at h h' ⊢ hJ ,
     explicit'
-    { cases h, subst w',
-      apply_epsilon_spec,
-      simp, auto, } },
+    { cases h, subst w', subst sch_a',
+      apply_epsilon_spec, simp,
+      tauto, } },
 end
 
 omit H
@@ -366,7 +373,7 @@ begin
   have
   : temporal.many_to_many.SPEC₂ v o sch_c ⋀ temporal.many_to_many.Wtn ⦃sch_a,w⦄ ⋀
       ◻(J ! ⦃o,w,v⦄) ⟹
-    temporal.many_to_many.SPEC₁ v o ⋀ temporal.many_to_many.SPEC₀.saf w o ⋀
+    temporal.many_to_many.SPEC₁ v o ⋀ temporal.many_to_many.SPEC₀.saf' w o sch_a ⋀
       ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
     simp, intros h₀ h₁ h₂, split*,
@@ -374,10 +381,13 @@ begin
     { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, auto, },
     { auto }
   end,
-  constructor ;
-  try { cases (Hpo e w),
-        transitivity, apply this,
-        simp at *, auto, },
+  constructor,
+  iterate 3
+  { cases (Hpo e w sch_a),
+    simp at *,
+    transitivity,
+    { apply this },
+    { assumption } },
   clear this,
   begin [temporal]
     intros,
@@ -408,7 +418,7 @@ lemma sched_ref (i : aevt) -- (w : tvar (aevt × α))
 begin [temporal]
   have hJ : ◻(J ! ⦃o,w,v⦄),
   { apply temporal.many_to_many.J_inv_in_w ; auto },
-  apply splitting (Hpo i w) _ _,
+  apply splitting (Hpo i w sch_a) _ _,
   { split*,
     apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; auto,
     apply temporal.many_to_many.witness_imp_SPEC₀_saf ; auto,
@@ -484,8 +494,8 @@ end obligations
 
 include SIM₀ SIM
 lemma refinement {o : tvar γ}
-  (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α),
-    many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf w o ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
+  (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α) (sch_a : tvar aevt),
+    many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf' w o sch_a ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
       (λ (e' : subtype (ref e)), ce ↑e') (ae e)
       ⦃o,v⦄ ⦃o,w⦄)
 : (∃∃ c, SPEC₁ c o) ⟹ (∃∃ a, SPEC₀ a o) :=
