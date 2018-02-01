@@ -155,7 +155,7 @@ begin [temporal]
   henceforth at h ⊢,
   cases h with e h,
   explicit
-  { simp [Next_c,on_fun,map_right] at a ⊢ h,
+  { simp [Next_c,on_fun,map_right] at a_1 ⊢ h,
     cases h, subst e, auto },
 end
 

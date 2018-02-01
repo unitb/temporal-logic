@@ -613,7 +613,7 @@ do let (x,y) := if cfg.symm then (y',x')
      h ← get_local h',
      `(%%Γ ⊢ _) ← target,
      rule ← to_expr ``(henceforth_str (%%x ≃ %%y) %%Γ),
-     rule ← mk_mapp `predicate.p_impl_revert [none,Γ,none,none,rule,h],
+     rule ← mk_mapp `predicate.p_impl_revert [none,Γ,none,none,rule,h] <|> pure h,
      repeat (() <$ apply rule <|> refine ``(v_eq_refl _ _) <|> apply_timeless_congr),
      all_goals $
        exact rule,
@@ -901,6 +901,7 @@ do `(%%Γ ⊢ _) ← target,
      tactic.clear h),
    let rs' := map simp_arg_type.expr [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)] ++ rs,
    let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
+   tactic.interactive.simp none ff rs' [`predicate] l { fail_if_unchanged := ff },
    repeat (
        tactic.interactive.simp none ff rs' [`predicate] l
        <|> unfold_coes l),
@@ -1004,9 +1005,11 @@ do t ← infer_type p,
 meta def break_conj (Γ p p' a b : expr) (ids : list name) : temporal unit :=
 do  let h₀ : name := (ids.nth 0).get_or_else `a,
     let h₁ : name := (ids.nth 1).get_or_else `a,
-    to_expr ``(p_and_elim_left %%a %%b %%Γ %%p') >>= note h₀ none,
-    to_expr ``(p_and_elim_right %%a %%b %%Γ %%p') >>= note h₁ none,
-    when p.is_local_constant (tactic.clear p)
+    h₀ ← to_expr ``(p_and_elim_left %%a %%b %%Γ %%p') >>= note h₀ none,
+    h₁ ← to_expr ``(p_and_elim_right %%a %%b %%Γ %%p') >>= note h₁ none,
+    when p.is_local_constant (tactic.clear p),
+    revert_lst [h₀,h₁],
+    intron 2
 
 meta def break_disj (Γ p p' a b : expr) (ids : list name) : temporal unit :=
 do let h₀ : name := (ids.nth 0).get_or_else `a,
@@ -1040,34 +1043,37 @@ do e' ← to_expr e.2,
 <|>
    tactic.interactive.cases e ids
 
+meta def match_pexpr (p : pexpr) (e : expr) : temporal unit :=
+to_expr p >>= unify e
+
 meta def cases (e : parse cases_arg_p) (ids : parse with_ident_list) : temporal unit :=
 do p' ← to_expr e.2,
    (some (Γ,p,q)) ← sequent_type p' | cases_dt e ids,
-   match q with
-    | `(◻(%%a ⋀ %%b)) := do
-      p₁ ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (henceforth_and %%a %%b)) %%p),
-      a ← to_expr ``(◻%%a),
-      b ← to_expr ``(◻%%b),
-      -- p' ← mk_app `eq.mp [p₀,p],
-      break_conj Γ p' p₁ a b ids
-    | `(%%a ⋀ %%b) := do
-      break_conj Γ p p a b ids
-    | `(%%a ⋁ %%b) := do
-      break_disj Γ p p a b ids
-    | `(◇(%%a ⋁ %%b)) := do
-      p' ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (eventually_or %%a %%b)) %%p),
-      a ← to_expr ``(◇%%a),
-      b ← to_expr ``(◇%%b),
-      break_disj Γ p p' a b ids
-    | `(∃∃ x : %%t, %%e') := do
-      let h₀ : name := (ids.nth 0).get_or_else `a,
-      let h₁ : name := (ids.nth 1).get_or_else `a,
-      h ← note `h none p',
-      when p'.is_local_constant (tactic.clear p'),
-      revert [`h], h ← to_expr ``(p_exists_imp_eq_p_forall_imp _ _),
-      tactic.rewrite_target h, intros [h₀,h₁]
-    | _ := do q ← pp q, fail format!"case expression undefined on {q}"
-   end
+   a ← mk_mvar, b ← mk_mvar,
+   (do match_pexpr ``(◻(%%a ⋀ %%b)) q,
+       p₁ ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (henceforth_and %%a %%b)) %%p),
+       a ← to_expr ``(◻%%a),
+       b ← to_expr ``(◻%%b),
+       -- p' ← mk_app `eq.mp [p₀,p],
+       break_conj Γ p' p₁ a b ids) <|>
+   (do match_pexpr ``(%%a ⋀ %%b) q,
+       break_conj Γ p p a b ids) <|>
+   (do match_pexpr ``(%%a ⋁ %%b) q,
+       break_disj Γ p p a b ids) <|>
+   (do match_pexpr ``(◇(%%a ⋁ %%b)) q,
+       p' ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (eventually_or %%a %%b)) %%p),
+       a ← to_expr ``(◇%%a),
+       b ← to_expr ``(◇%%b),
+       break_disj Γ p p' a b ids) <|>
+   (do match_pexpr ``(p_exists %%b) q,
+       let h₀ : name := (ids.nth 0).get_or_else `_,
+       let h₁ : name := (ids.nth 1).get_or_else `_,
+       h ← note `h none p',
+       when p'.is_local_constant (tactic.clear p'),
+       revert [`h], h ← to_expr ``(p_exists_imp_eq_p_forall_imp _ _),
+       tactic.rewrite_target h, intros [h₀,h₁]) <|>
+   (do q ← pp q, fail format!"case expression undefined on {q}")
+#check p_exists_imp_eq_p_forall_imp
 
 private meta def cases_core (p : expr) : tactic unit :=
 () <$ cases (none,to_pexpr p) []
@@ -1278,6 +1284,14 @@ meta def simp (no_dflt : parse only_flag)
 do tactic.interactive.simp none no_dflt hs attr_names locat cfg,
    try refl
 
+meta def simp_coes (no_dflt : parse only_flag)
+              (hs : parse simp_arg_list)
+              (attr_names : parse with_ident_list)
+              (locat : parse location)
+              (cfg : simp_config_ext := {}) : temporal unit :=
+do tactic.interactive.simp_coes none no_dflt hs attr_names locat cfg,
+   try refl
+
 meta def exfalso : temporal unit :=
 do `(%%Γ ⊢ %%p) ← target,
    `[apply False_entails %%p %%Γ _]
@@ -1351,6 +1365,9 @@ meta def «show» (q : parse $ texpr <* tk ",") (tac : tactic.interactive.itacti
 do gs ← get_goals,
    show_aux q gs [],
    solve1 tac
+
+meta def rename (n₀ n₁ : parse ident) : temporal unit :=
+tactic.rename n₀ n₁
 
 meta def replace (n : parse ident)
 : parse (parser.tk ":" *> texpr)? → parse (parser.tk ":=" *> texpr)? → temporal unit

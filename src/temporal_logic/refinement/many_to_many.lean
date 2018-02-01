@@ -3,6 +3,8 @@ import .simulation
 universe variables u u₀ u₁ u₂ u₃
 open predicate nat
 
+local infix ` ≃ `:75 := v_eq
+
 namespace temporal
 
 namespace many_to_many
@@ -62,7 +64,9 @@ q ! ⦃ o,v ⦄ ⋀
 
 end specs
 
-parameters [inhabited α] [inhabited cevt] [inhabited aevt]
+parameters [inh_α : inhabited α]
+           [inh_cevt : inhabited cevt]
+           [inh_aevt : inhabited aevt]
 
 parameter Hc2a : ∀ ce : cevt, ∃ ae : aevt, ref ae ce
 
@@ -123,7 +127,7 @@ q ! ⟨prod.map_right prod.snd⟩
 end J
 variable w : tvar α
 open function
-
+include inh_aevt inh_α
 noncomputable def Wx₀_f : tvar (β → γ → aevt × α) :=
 λ v o, ε w : aevt × _, (o,w.2) ⊨ p ∧ (o,w.2,v) ⊨ J
 
@@ -257,10 +261,10 @@ begin [temporal]
   apply induct _ _ _ _,
   { persistent,
     select H₀ : ◻p_exists _,
-    henceforth at h₀ H₀ ⊢,
+    henceforth at h₀_1 H₀ ⊢,
     explicit'
     { intro h,
-      cases h₀, subst w',
+      cases h₀_1, subst w',
       apply_epsilon_spec, simp, tauto, } },
   { select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select Hq : q ! _,
@@ -328,12 +332,12 @@ lemma sch_w_spec
 begin [temporal]
   have hJ := temporal.many_to_many.J_inv_in_w _ H _ valid_witness,
   simp [Wtn,SPEC₂] at valid_witness H,
-  cases valid_witness with Hw Hw,
-  cases H with H H',
-  cases H with H H,
+  cases valid_witness with Hw' Hw,
+  cases H with H H₀,
+  cases H with H₁ H₂,
   persistent,
   -- have H' := temporal.many_to_many.H',
-  henceforth at Hw ⊢ hJ H,
+  henceforth at Hw ⊢ hJ H₂,
   explicit'
   { cases Hw, subst sch_a', apply_epsilon_spec,
     simp, apply SIM ; auto, },
@@ -397,7 +401,7 @@ begin
     have := temporal.many_to_many.H_C_imp_A _ _ _ _ Hw x e
     ; try { auto <|> apply temporal.many_to_many.sch_w_spec },
     clear_except this SIM₀ SIM Hw hJ,
-    simp [Wtn] at Hw, cases Hw with Hw Hw,
+    simp [Wtn] at Hw, cases Hw with Hw' Hw,
     persistent,
     henceforth at ⊢ this Hw hJ,
     explicit'
@@ -471,7 +475,7 @@ end SPEC₂
 end conc_sch
 
 section refinement_SPEC₂
-include SIM₀ SIM wit Hpo
+include SIM₀ SIM wit Hpo inh_aevt inh_α
 parameters cs₁ fs₁ cs₀ fs₀
 
 -- variable {Γ : cpred}
@@ -486,13 +490,54 @@ end
 
 end refinement_SPEC₂
 
-lemma refinement_SPEC₁
-: SPEC₁ v o ⟹ (∃∃ sch, SPEC₂ v o sch) :=
+abbreviation SCHED (r : tvar (set cevt)) (s : tvar cevt) :=
+◻(s ∊ r) ⋀
+∀∀ (e : cevt),
+  ◻◇(↑e ∊ r) ⟶
+  ◻◇(s ≃ ↑e ⋀ ↑e ∊ r)
+
+lemma scheduler (r : tvar (set cevt))
+: Γ ⊢ (∃∃ s, SCHED r s) :=
 sorry
+
+open nat function set
+include inh_cevt
+
+lemma refinement_SPEC₁
+: Γ ⊢ SPEC₁ v o ⟶ (∃∃ sch, SPEC₂ v o sch) :=
+begin [temporal]
+  intro h,
+  let r : tvar (set cevt) := ⟪ ℕ, λ s s', { e | C e s s' } ⟫ ⦃o,v⦄ ⦃⊙o,⊙v⦄,
+  have h' := temporal.many_to_many.scheduler r,
+  cases h' with sch h',
+  existsi sch,
+  simp [SPEC₁,SPEC₂] at ⊢ h,
+  casesm* _ ⋀ _,
+  split* ; try { auto },
+  { select h' : ◻(p_exists _),
+    select hJ : ◻(_ ∊ _),
+    persistent, henceforth at hJ h' ⊢,
+    existsi sch with hh,
+    split,
+    { rw hh, },
+    { simp [r] at hJ, clear a_1 r,
+      explicit'
+      { subst sch, assumption } } },
+  { introv, intros h₀ h₁,
+    rename a_3 h₂,
+    replace h₂ := h₂ x h₀ h₁,
+    replace a_1 := a_1 x,
+    persistent,
+    have : ↑x ∊ r ≡ ⟦ o,v | C x ⟧,
+    { simp [r], clear a_1 a r,
+      explicit' { refl }, },
+    rw [this,this] at a_1,
+    auto, }
+end
 
 end obligations
 
-include SIM₀ SIM
+include SIM₀ SIM inh_cevt inh_aevt inh_α
 lemma refinement {o : tvar γ}
   (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α) (sch_a : tvar aevt),
     many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf' w o sch_a ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
@@ -503,7 +548,7 @@ begin [temporal]
   transitivity (∃∃ c sch, SPEC₂ q C cs₁ fs₁ c o sch),
   { apply p_exists_p_imp_p_exists ,
     intro v,
-    apply refinement_SPEC₁, },
+    apply temporal.many_to_many.refinement_SPEC₁, },
   { simp, intros c sch Hspec,
     specialize h c,
     apply temporal.many_to_many.refinement_SPEC₂ c o Γ h,
