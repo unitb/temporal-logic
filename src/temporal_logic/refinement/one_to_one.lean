@@ -225,7 +225,8 @@ begin [temporal]
            temporal.one_to_one.Wtn w ⋀
            ◻(J ! ⦃o,w,v⦄),
   { revert H',  persistent,
-    intro, casesm* _ ⋀ _, split* ; try { assumption },
+    intro, casesm* _ ⋀ _,
+    split ; try { assumption }, split ; try { assumption },
     apply temporal.one_to_one.SPEC₂_imp_SPEC₁ _ Γ _,
     auto, casesm* _ ⋀ _, auto, },
   clear Hpo,
@@ -272,7 +273,7 @@ begin
     temporal.one_to_one.SPEC₁ v o ⋀ temporal.one_to_one.SPEC₀.saf' w o sch ⋀ ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
     simp, intros h₀ h₁ h₂,
-    split*,
+    split, split,
     { apply temporal.one_to_one.SPEC₂_imp_SPEC₁ Hpo _ h₀, },
     { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; auto, },
     { auto }
@@ -304,7 +305,7 @@ begin [temporal]
   simp [J'] at hJ,
   have Hpo' := temporal.one_to_one.Hpo' Hpo w i,
   apply replacement Hpo' Γ _,
-  tauto, auto,
+  repeat { auto <|> split },
 end
 
 lemma one_to_one

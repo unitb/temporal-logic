@@ -60,6 +60,7 @@ open interactive
 open tactic.interactive (rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr')
 open has_to_tactic_format
 open has_map list (filter)
+
 section expr
 open expr
 variable {elab : bool}
@@ -807,6 +808,50 @@ open expr tactic.interactive (rcases_parse rcases_parse.invert)
 local postfix `?`:9001 := optional
 local postfix *:9001 := many
 
+precedence `[|`:1024
+precedence `|]`:0
+
+meta def abstract_names_p (f : name → option ℕ) : ℕ → pexpr → pexpr
+ | k e@(expr.local_const _ n _ _) := option.cases_on (f n) e (λ i, expr.var $ i + k)
+ | k e@(expr.const n _) := option.cases_on (f n) e expr.var
+ | k e@(var n)  := e
+ | k e@(sort l) := e
+ | k e@(mvar n m t)   := e
+ | k (app e₀ e₁) := app (abstract_names_p k e₀) (abstract_names_p k e₁)
+ | k (lam n bi e t) := lam n bi (abstract_names_p k e) (abstract_names_p (k+1) t)
+ | k (pi n bi e t) := pi n bi (abstract_names_p k e) (abstract_names_p (k+1) t)
+ | k (elet n g e b) := elet n (abstract_names_p k g) (abstract_names_p k e) (abstract_names_p (k+1) b)
+ | k (macro d args) := macro d $ args.map (abstract_names_p k)
+
+meta def var_type : pexpr → pexpr
+ | (app _ t) := t
+ | t := t
+
+meta def lambdas_p_aux : list pexpr → pexpr → pexpr
+ | (local_const _ n bi t :: ts) e := lambdas_p_aux ts $ lam n bi (var_type t) e
+ | _ e := e
+
+def index_of {α} [decidable_eq α] (xs : list α) (x : α) : option ℕ :=
+let r := list.index_of x xs in
+if r < xs.length then r
+                 else none
+
+meta def lambdas_p (vs : list pexpr) (e : pexpr) : pexpr :=
+lambdas_p_aux vs (abstract_names_p (index_of (vs.map expr.local_pp_name)) 0 e)
+
+meta def mk_app_p : pexpr → list pexpr → pexpr
+ | e (e' :: es) := mk_app_p ``(var_seq %%e %%e') es
+ | e [] := e
+
+@[user_notation]
+meta def scoped_var (_ : parse $ tk "[|")
+  (ls : parse $ ident* <* tk ",")
+  (e : parse  $ texpr  <* tk "|]") : lean.parser pexpr :=
+do vs ← ls.mmap (λ pp_n, do (e,_) ← with_input texpr pp_n.to_string,
+                            return e ),
+   let r := mk_app_p ``( ⟪ ℕ, %%(lambdas_p vs.reverse e) ⟫ ) vs,
+   return r
+
 meta def skip : temporal unit :=
 tactic.skip
 
@@ -889,7 +934,7 @@ open function
 meta def explicit'
   (rs : parse simp_arg_list)
   (tac : tactic.interactive.itactic) : temporal unit :=
-do `(%%Γ ⊢ _) ← target,
+do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
    let st := `σ,
    asms ← get_assumptions,
    constructor,
@@ -966,11 +1011,11 @@ meta def revert (ns : parse ident*) : temporal unit :=
 mmap get_local ns >>= mmap' temporal.revert
 
 meta def exact (e : parse texpr) : temporal unit :=
-tactic.interactive.exact e
+t_to_expr e >>= tactic.exact
 
 meta def refine (e : parse texpr) : temporal unit :=
 do t ← target,
-   t_to_expr ``(%%e : %%t) >>= tactic.exact
+   to_expr ``(%%e : %%t) >>= tactic.exact
 
 meta def apply (q : parse texpr) : temporal unit :=
 t_to_expr_for_apply q >>= temporal.apply
@@ -1073,7 +1118,6 @@ do p' ← to_expr e.2,
        revert [`h], h ← to_expr ``(p_exists_imp_eq_p_forall_imp _ _),
        tactic.rewrite_target h, intros [h₀,h₁]) <|>
    (do q ← pp q, fail format!"case expression undefined on {q}")
-#check p_exists_imp_eq_p_forall_imp
 
 private meta def cases_core (p : expr) : tactic unit :=
 () <$ cases (none,to_pexpr p) []
@@ -1167,11 +1211,11 @@ do x ← focus_right' ids.opt_head,
 meta def split (rec : parse $ (tk "*")?) : temporal unit :=
 if rec.is_some then
   focus1 $ repeat $ do
-    `(%%Γ ⊢ %%p ⋀ %%q) ← target,
-    apply ``(p_and_intro %%p %%q %%Γ _ _)
+    `(%%Γ ⊢ %%p ⋀ %%q) ← target >>= force ``(_ ⊢ _ ⋀ _),
+    temporal.interactive.exact ``(p_and_intro %%p %%q %%Γ _ _)
 else do
-  `(%%Γ ⊢ %%p ⋀ %%q) ← target,
-  apply ``(p_and_intro %%p %%q %%Γ _ _)
+  `(%%Γ ⊢ %%p ⋀ %%q) ← target >>= force ``(_ ⊢ _ ⋀ _),
+  temporal.interactive.exact ``(p_and_intro %%p %%q %%Γ _ _)
 
 meta def existsi : parse pexpr_list_or_texpr → parse with_ident_list → temporal unit
 | []      _ := return ()
@@ -1327,11 +1371,41 @@ do e ← t_to_expr e, tactic.type_check e, infer_type e >>= trace
 def with_defaults {α} : list α → list α → list α
  | [] xs := xs
  | (x :: xs) (_ :: ys) := x :: with_defaults xs ys
- | xs _ := xs
+ | xs [] := xs
 meta def rename_bound (n : name) : expr → expr
  | (expr.app e₀ e₁) := expr.app e₀ (rename_bound e₁)
  | (expr.lam _ bi t e) := expr.lam n bi t e
  | e := e
+
+meta def henceforth (l : parse location) : temporal unit :=
+do when l.include_goal $
+     persistently (do
+       refine ``(persistent_to_henceforth _)),
+   soft_apply l
+         (λ h, do b ← is_henceforth h,
+                  when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
+                  to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
+                    >>= note h.local_pp_name none,
+                  tactic.clear h)
+         (pure ())
+
+meta def t_induction
+  (pers : parse $ (tk "!") ?)
+  (p : parse texpr?)
+  (ids : parse with_ident_list)
+: tactic unit :=
+(do `(%%Γ ⊢ ◻%%p) ← target,
+    let xs := (with_defaults ids [`ih]).take 1,
+    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= mk_meta_var,
+    ih ← to_expr ``(%%Γ ⊢ ◻(%%p ⟶ ⊙%%p)) >>= assert `ih,
+    b ← is_context_persistent,
+    when (b ∨ pers.is_some) $
+    focus1 (do
+      persistent [],
+      interactive.henceforth (loc.ns [none]),
+      intros xs),
+    tactic.swap,
+    t_to_expr ```(temporal.induct %%p %%Γ %%ih %%h₀) >>= tactic.exact)
 
 meta def wf_induction
   (p : parse texpr)
@@ -1442,18 +1516,6 @@ open interactive interactive.types lean lean.parser
 open applicative (mmap₂ lift₂)
 open has_map
 local postfix `?`:9001 := optional
-
-meta def interactive.henceforth (l : parse location) : temporal unit :=
-do when l.include_goal $
-     persistently (do
-       refine ``(persistent_to_henceforth _)),
-   soft_apply l
-         (λ h, do b ← is_henceforth h,
-                  when (¬ b) $ fail format!"{h} is not of the shape `□ _`",
-                  to_expr ``(p_impl_revert (henceforth_str _ _) %%h)
-                    >>= note h.local_pp_name none,
-                  tactic.clear h)
-         (pure ())
 
 meta def monotonicity1 (only_pers : parse only_flag) : temporal unit :=
 do ex ← (if ¬ only_pers then do

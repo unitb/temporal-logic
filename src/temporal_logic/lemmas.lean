@@ -222,7 +222,7 @@ begin [temporal]
   apply induct _ _ h,
 end
 
-lemma induct_evt (p q : cpred) {Γ}
+lemma induct_evt' (p q : cpred) {Γ}
   (h : Γ ⊢ ◻ (p ⟶ -q ⟶ ⊙(p ⋁ q)))
 : Γ ⊢ ◻ (p ⟶ ◇q ⋁ ◻p) :=
 begin
@@ -238,6 +238,13 @@ begin
     rw [or_comm,or_iff_not_imp] at h,
     apply h, rw [← add_succ,← add_succ],
     apply hnq }
+end
+
+lemma induct_evt (p q : cpred) {Γ}
+  (h : Γ ⊢ ◻ (p ⟶ -q ⟶ ⊙(p ⋁ q)))
+: Γ ⊢ (p ⟶ ◇q ⋁ ◻p) :=
+begin [temporal]
+  apply induct_evt' _ _ h,
 end
 
 theorem em (p : cpred) : ⊩ ◇◻p ⋁ ◻◇(- p) :=
@@ -633,7 +640,7 @@ begin [temporal]
       apply coincidence' a,
       apply coincidence' h₁ h₀, },
     revert Hv, strengthen_to ◻ _,
-    apply induct_evt _ _ _,
+    apply induct_evt' _ _ _,
     clear Hp,
     henceforth, admit },
   revert h₀, clear h₀, intro h₀,

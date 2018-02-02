@@ -1,4 +1,7 @@
-import .simulation
+import ..scheduling
+import ..fairness
+
+import util.predicate
 
 universe variables u u₀ u₁ u₂ u₃
 open predicate nat
@@ -380,8 +383,8 @@ begin
     temporal.many_to_many.SPEC₁ v o ⋀ temporal.many_to_many.SPEC₀.saf' w o sch_a ⋀
       ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
-    simp, intros h₀ h₁ h₂, split*,
-    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; try { auto }, },
+    simp, intros h₀ h₁ h₂, split, split,
+    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo _ ; try { auto }, },
     { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, auto, },
     { auto }
   end,
@@ -423,7 +426,7 @@ begin [temporal]
   have hJ : ◻(J ! ⦃o,w,v⦄),
   { apply temporal.many_to_many.J_inv_in_w ; auto },
   apply splitting (Hpo i w sch_a) _ _,
-  { split*,
+  { split, split,
     apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; auto,
     apply temporal.many_to_many.witness_imp_SPEC₀_saf ; auto,
     auto },
@@ -490,25 +493,19 @@ end
 
 end refinement_SPEC₂
 
-abbreviation SCHED (r : tvar (set cevt)) (s : tvar cevt) :=
-◻(s ∊ r) ⋀
-∀∀ (e : cevt),
-  ◻◇(↑e ∊ r) ⟶
-  ◻◇(s ≃ ↑e ⋀ ↑e ∊ r)
-
-lemma scheduler (r : tvar (set cevt))
-: Γ ⊢ (∃∃ s, SCHED r s) :=
-sorry
-
 open nat function set
 include inh_cevt
 
+variables {f : cevt → ℕ} (Hinj : injective f)
+
+include Hinj
 lemma refinement_SPEC₁
 : Γ ⊢ SPEC₁ v o ⟶ (∃∃ sch, SPEC₂ v o sch) :=
 begin [temporal]
   intro h,
   let r : tvar (set cevt) := ⟪ ℕ, λ s s', { e | C e s s' } ⟫ ⦃o,v⦄ ⦃⊙o,⊙v⦄,
-  have h' := temporal.many_to_many.scheduler r,
+  have hr : ◻-(r ≃ (∅ : set cevt)), admit,
+  have h' := temporal.scheduling.scheduler Γ Hinj r hr,
   cases h' with sch h',
   existsi sch,
   simp [SPEC₁,SPEC₂] at ⊢ h,
@@ -520,7 +517,7 @@ begin [temporal]
     existsi sch with hh,
     split,
     { rw hh, },
-    { simp [r] at hJ, clear a_1 r,
+    { simp [r] at hJ, clear a_1 hr r,
       explicit'
       { subst sch, assumption } } },
   { introv, intros h₀ h₁,
@@ -529,16 +526,17 @@ begin [temporal]
     replace a_1 := a_1 x,
     persistent,
     have : ↑x ∊ r ≡ ⟦ o,v | C x ⟧,
-    { simp [r], clear a_1 a r,
+    { simp [r], clear a_1 a hr r,
       explicit' { refl }, },
     rw [this,this] at a_1,
     auto, }
 end
 
 end obligations
-
+open function
 include SIM₀ SIM inh_cevt inh_aevt inh_α
-lemma refinement {o : tvar γ}
+lemma refinement {o : tvar γ} {f : cevt → ℕ}
+  (Hinj : injective f)
   (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α) (sch_a : tvar aevt),
     many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf' w o sch_a ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
       (λ (e' : subtype (ref e)), ce ↑e') (ae e)
@@ -548,7 +546,7 @@ begin [temporal]
   transitivity (∃∃ c sch, SPEC₂ q C cs₁ fs₁ c o sch),
   { apply p_exists_p_imp_p_exists ,
     intro v,
-    apply temporal.many_to_many.refinement_SPEC₁, },
+    apply temporal.many_to_many.refinement_SPEC₁ _ _ _ Hinj, },
   { simp, intros c sch Hspec,
     specialize h c,
     apply temporal.many_to_many.refinement_SPEC₂ c o Γ h,
