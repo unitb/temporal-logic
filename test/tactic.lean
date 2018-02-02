@@ -3,6 +3,8 @@ import temporal_logic
 
 open temporal predicate
 
+local infix ` ≃ ` := v_eq
+
 section
 variable α : Type
 

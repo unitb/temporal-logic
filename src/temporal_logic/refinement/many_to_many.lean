@@ -383,7 +383,7 @@ begin
     temporal.many_to_many.SPEC₁ v o ⋀ temporal.many_to_many.SPEC₀.saf' w o sch_a ⋀
       ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
-    simp, intros h₀ h₁ h₂, split, split,
+    simp, intros h₀ h₁ h₂, split*,
     { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo _ ; try { auto }, },
     { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, auto, },
     { auto }

@@ -1208,10 +1208,13 @@ do x ← focus_right' ids.opt_head,
      get_local x.local_pp_name >>= temporal.revert,
      `[rw [p_not_p_imp]])
 
-meta def split (rec : parse $ (tk "*")?) : temporal unit :=
+meta def split (greedy : parse $ (tk "!")?) (rec : parse $ (tk "*")?) : temporal unit :=
+let goal := if greedy.is_some
+               then target >>= force ``(_ ⊢ _ ⋀ _)
+               else target in
 if rec.is_some then
   focus1 $ repeat $ do
-    `(%%Γ ⊢ %%p ⋀ %%q) ← target >>= force ``(_ ⊢ _ ⋀ _),
+    `(%%Γ ⊢ %%p ⋀ %%q) ← goal,
     temporal.interactive.exact ``(p_and_intro %%p %%q %%Γ _ _)
 else do
   `(%%Γ ⊢ %%p ⋀ %%q) ← target >>= force ``(_ ⊢ _ ⋀ _),
@@ -1354,10 +1357,10 @@ do `(%%Γ ⊢ %%p ⋁ %%q) ← target,
 meta def auto : temporal unit :=
 assumption $ assumption $ assumption done
 
-meta def tauto : temporal unit :=
+meta def tauto (greedy : parse (tk "!")?) : temporal unit :=
 () <$ intros [] ;
 casesm (some ()) [``(_ ⋀ _),``(_ ⋁ _)] ;
-split (some ()) ;
+split greedy (some ()) ;
 auto
 
 meta def specialize (h : parse texpr) : temporal unit :=
