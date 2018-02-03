@@ -928,7 +928,7 @@ do vs ← list_state_vars `(ℕ),
                         -- trace format!"{h} : {t}",
                         tactic.clear h),
    tactic.clear σ,
-   mmap' tactic.clear vs'
+   mmap' tactic.clear vs'.reverse
 
 open function
 meta def explicit'

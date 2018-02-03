@@ -505,7 +505,11 @@ begin [temporal]
   let r : tvar (set cevt) := ⟪ ℕ, λ s s', { e | C e s s' } ⟫ ⦃o,v⦄ ⦃⊙o,⊙v⦄,
   have hr : ◻-(r ≃ (∅ : set cevt)),
   { simp [SPEC₁] at h,
-    casesm* _ ⋀ _, admit },
+    casesm* _ ⋀ _,
+    select Hact : ◻(p_exists _),
+    henceforth! at Hact ⊢,
+    explicit' [r]
+    { rw not_eq_empty_iff_exists, exact Hact }, },
   have h' := temporal.scheduling.scheduler Γ r hr,
   cases h' with sch h',
   existsi sch,
