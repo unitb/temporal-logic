@@ -908,7 +908,10 @@ do n ← tactic.revert curr,
    tactic.intro new
    <* tactic.intron (n - 1)
 
-meta def subst_state_variables (σ : expr) : tactic unit :=
+structure explicit_opts :=
+  (verbose := ff)
+
+meta def subst_state_variables (σ : expr) (p : explicit_opts) : tactic unit :=
 do vs ← list_state_vars `(ℕ),
    let ns := name_set.of_list (vs.map expr.local_uniq_name),
    vs' ← reverting (λ h, do t ← infer_type h, return $ t.has_local_in ns) (do
@@ -923,6 +926,7 @@ do vs ← list_state_vars `(ℕ),
      try (generalize p' n_primed >> intro1),
      return v),
    ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
+   when p.verbose trace_state,
    ls.for_each (λ h, do -- trace "deleting",
                         -- t ← infer_type h >>= pp,
                         -- trace format!"{h} : {t}",
@@ -933,7 +937,9 @@ do vs ← list_state_vars `(ℕ),
 open function
 meta def explicit'
   (rs : parse simp_arg_list)
-  (tac : tactic.interactive.itactic) : temporal unit :=
+  (tac : tactic.interactive.itactic)
+  (opt : explicit_opts := {})
+: temporal unit :=
 do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
    let st := `σ,
    asms ← get_assumptions,
@@ -954,7 +960,7 @@ do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
      tactic.clear hΓ,
      try (to_expr ``(temporal.persistent %%Γ) >>= mk_instance >>= tactic.clear),
      tactic.clear Γ,
-     subst_state_variables st,
+     subst_state_variables st opt,
      tac)
 
 meta def same_type (e₀ e₁ : expr) : temporal unit :=

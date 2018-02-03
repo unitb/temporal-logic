@@ -37,6 +37,13 @@ lemma next_eventually_comm (p : cpred)
 : ⊙◇p = ◇⊙p :=
 by lifted_pred [next,eventually,nat.succ_add]
 
+lemma holds_next (Γ p : cpred) [persistent Γ]
+  (h : Γ ⊢ p)
+: Γ ⊢ ⊙p :=
+begin [temporal]
+  apply persistent_to_henceforth h,
+end
+
 /- distributivity -/
 
 lemma eventually_and_entails {p q : cpred}
