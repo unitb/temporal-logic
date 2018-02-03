@@ -115,7 +115,7 @@ begin [temporal]
   { apply temporal.simulation.init_in_w _ Hw },
   { type_check_result "foo",
     replace Hw := temporal.simulation.C_imp_A_in_w _ Hw,
-    monotonicity only,
+    monotonicity!,
     apply Hw, },
 end
 

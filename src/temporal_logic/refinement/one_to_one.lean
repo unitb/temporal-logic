@@ -329,7 +329,7 @@ begin [temporal]
     replace SIM := SIM' A C J SIM,
     have := temporal.simulation.C_imp_A_in_w p' q'
       (Next_a A) (Next_c C) (J' J) SIM₀ SIM v ⦃o,sch⦄ _ H' w Hw,
-    { monotonicity only,
+    { monotonicity!,
       simp [exists_action],
       intros e h₀ h₁, replace this := this _,
       { revert this,

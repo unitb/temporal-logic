@@ -434,7 +434,7 @@ begin [temporal]
   simp only, intros H₀ H₁,
   replace h := h ce Hce H₀ H₁,
   revert h,
-  monotonicity only,
+  monotonicity!,
   lifted_pred,
 end
 
@@ -462,7 +462,7 @@ begin [temporal]
     have hJ := temporal.many_to_many.J_inv_in_w _ H _ Hw,
     simp [Wtn,SPEC₂] at H Hw,
     casesm _ ⋀ _,
-    monotonicity only,
+    monotonicity!,
     simp, intros ce h₀ h₁,
     select Hw : ◻(_ ≃ _),
     henceforth at Hw hJ,
@@ -496,16 +496,17 @@ end refinement_SPEC₂
 open nat function set
 include inh_cevt
 
-variables {f : cevt → ℕ} (Hinj : injective f)
+variables [schedulable cevt]
 
-include Hinj
 lemma refinement_SPEC₁
 : Γ ⊢ SPEC₁ v o ⟶ (∃∃ sch, SPEC₂ v o sch) :=
 begin [temporal]
   intro h,
   let r : tvar (set cevt) := ⟪ ℕ, λ s s', { e | C e s s' } ⟫ ⦃o,v⦄ ⦃⊙o,⊙v⦄,
-  have hr : ◻-(r ≃ (∅ : set cevt)), admit,
-  have h' := temporal.scheduling.scheduler Γ Hinj r hr,
+  have hr : ◻-(r ≃ (∅ : set cevt)),
+  { simp [SPEC₁] at h,
+    casesm* _ ⋀ _, admit },
+  have h' := temporal.scheduling.scheduler Γ r hr,
   cases h' with sch h',
   existsi sch,
   simp [SPEC₁,SPEC₂] at ⊢ h,
@@ -535,8 +536,7 @@ end
 end obligations
 open function
 include SIM₀ SIM inh_cevt inh_aevt inh_α
-lemma refinement {o : tvar γ} {f : cevt → ℕ}
-  (Hinj : injective f)
+lemma refinement {o : tvar γ} [schedulable cevt]
   (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α) (sch_a : tvar aevt),
     many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf' w o sch_a ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
       (λ (e' : subtype (ref e)), ce ↑e') (ae e)
@@ -546,7 +546,7 @@ begin [temporal]
   transitivity (∃∃ c sch, SPEC₂ q C cs₁ fs₁ c o sch),
   { apply p_exists_p_imp_p_exists ,
     intro v,
-    apply temporal.many_to_many.refinement_SPEC₁ _ _ _ Hinj, },
+    apply temporal.many_to_many.refinement_SPEC₁, },
   { simp, intros c sch Hspec,
     specialize h c,
     apply temporal.many_to_many.refinement_SPEC₂ c o Γ h,

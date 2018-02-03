@@ -13,12 +13,12 @@ local infix ` ≃ `:75 := v_eq
 local attribute [instance] classical.prop_decidable
 universe u
 
-namespace temporal.scheduling
+namespace temporal
+namespace scheduling
 section scheduling
 
 parameter {evt : Type u}
 parameter Γ : cpred
-parameters {f : evt → ℕ} (Hinj : injective f)
 parameter r : tvar (set evt)
 parameter Hr : Γ ⊢ ◻-(r ≃ (∅ : set evt))
 parameter [nonempty evt]
@@ -31,6 +31,7 @@ abbreviation SCHED  (s : tvar evt) :=
 
 section implementation
 
+parameters {f : evt → ℕ} (Hinj : injective f)
 parameter q : tvar (evt → ℕ)
 parameter cur : tvar ℕ
 
@@ -102,21 +103,24 @@ end
 
 end implementation
 
-set_option trace.app_builder true
+class schedulable (α : Sort u) :=
+  (f : α → ℕ)
+  (inj : injective f)
 
-include f Hinj
-lemma scheduler
+lemma scheduler [schedulable evt]
   (hr : Γ ⊢ ◻-(r ≃ (∅ : set evt)))
 : Γ ⊢ (∃∃ s, SCHED s) :=
 begin [temporal]
   have := witness ↑(0 : ℕ) ( ↑(has_add.add 1) : tvar (ℕ → ℕ)) Γ,
   cases this with cur Hcur,
-  have := witness (f : tvar (evt → ℕ)) (next r cur) Γ,
+  have := witness ↑(schedulable.f : (evt → ℕ)) (next r cur) Γ,
   cases this with q Hq,
   existsi select r q,
-  apply correct_sched _ Hinj _ hr,
+  apply correct_sched _ _ hr (schedulable.inj evt),
   exact Hq,
 end
 
 end scheduling
-end temporal.scheduling
+end scheduling
+export scheduling (schedulable)
+end temporal

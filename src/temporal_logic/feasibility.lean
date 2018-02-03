@@ -114,7 +114,7 @@ begin
   begin [temporal]
     simp [C',SPEC₁,sched,q',action_on _ _ prod.snd,SPEC₀.saf'],
     intros _ _ _ h _, revert h,
-    monotonicity only,
+    monotonicity!,
     simp, intro,
     explicit' [C,one_to_one.C',A']
     { cc, },

@@ -924,7 +924,7 @@ do vs ← list_state_vars `(ℕ),
      return v),
    ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
    ls.for_each (λ h, do -- trace "deleting",
-                        t ← infer_type h >>= pp,
+                        -- t ← infer_type h >>= pp,
                         -- trace format!"{h} : {t}",
                         tactic.clear h),
    tactic.clear σ,
@@ -1380,9 +1380,10 @@ meta def rename_bound (n : name) : expr → expr
  | (expr.lam _ bi t e) := expr.lam n bi t e
  | e := e
 
-meta def henceforth (l : parse location) : temporal unit :=
-do when l.include_goal $
-     persistently (do
+meta def henceforth (pers : parse (tk "!")?) (l : parse location) : temporal unit :=
+do when l.include_goal (do
+     when pers.is_some $ persistent [],
+     persistently $
        refine ``(persistent_to_henceforth _)),
    soft_apply l
          (λ h, do b ← is_henceforth h,
@@ -1404,8 +1405,7 @@ meta def t_induction
     b ← is_context_persistent,
     when (b ∨ pers.is_some) $
     focus1 (do
-      persistent [],
-      interactive.henceforth (loc.ns [none]),
+      interactive.henceforth (some ()) (loc.ns [none]),
       intros xs),
     tactic.swap,
     t_to_expr ```(temporal.induct %%p %%Γ %%ih %%h₀) >>= tactic.exact)
@@ -1520,8 +1520,8 @@ open applicative (mmap₂ lift₂)
 open has_map
 local postfix `?`:9001 := optional
 
-meta def monotonicity1 (only_pers : parse only_flag) : temporal unit :=
-do ex ← (if ¬ only_pers then do
+meta def monotonicity1 (only_pers : parse (tk "!")?) : temporal unit :=
+do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
    else tt <$ interactive.persistent []),
@@ -1533,8 +1533,8 @@ do ex ← (if ¬ only_pers then do
      to_expr ``(ctx_impl _ _ _) >>= change,
      tactic.interactive.monotonicity1
 
-meta def monotonicity_n (n : ℕ) (only_pers : parse only_flag) : temporal unit  :=
-do ex ← (if ¬ only_pers then do
+meta def monotonicity_n (n : ℕ) (only_pers : parse (tk "!")?) : temporal unit  :=
+do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
    else tt <$ interactive.persistent []),
@@ -1546,9 +1546,9 @@ do ex ← (if ¬ only_pers then do
      to_expr ``(ctx_impl _ _ _) >>= change,
      tactic.iterate_exactly n tactic.interactive.monotonicity1
 
-meta def monotonicity (only_pers : parse only_flag)
+meta def monotonicity (only_pers : parse (tk "!")?)
   (e : parse assert_or_rule?) : temporal unit :=
-do ex ← (if ¬ only_pers then do
+do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
    else tt <$ interactive.persistent []),
@@ -1581,12 +1581,12 @@ do `(%%Γ ⊢ %%p) ← target,
    revert h',
    if goal then do
      `(◇ %%p) ← pure p | fail format!"expecting a goal of the form `◇ _`",
-     monotonicity1 ff
+     monotonicity1 none
    else persistently (refine ``(p_imp_postpone _ %%q %%p _)),
    () <$ intro (some h)
 
 meta def timeless (h : expr) : temporal (option name) :=
-do try $ interactive.henceforth (loc.ns [some h.local_pp_name]),
+do try $ interactive.henceforth none (loc.ns [some h.local_pp_name]),
    h ← get_local h.local_pp_name,
    `(%%Γ' ⊢ %%p) ← infer_type h | return none,
    `(@coe Prop cpred _ %%p) ← return p | none <$ clear h,

@@ -1,5 +1,5 @@
 
-.PHONY: all clean lines profile
+.PHONY: all deep-clean clean lines profile
 
 LEAN_OPT =
 SRC = $(shell git ls-files | grep "\\.lean")
@@ -16,9 +16,14 @@ all:
 	leanpkg build
 
 clean:
+	/usr/bin/find src -name "*.olean" -delete
+	/usr/bin/find src -name "*.lean.test_suite.out" -delete
+	/usr/bin/find src -name "*.lean.status" -delete
+
+deep-clean:
 	/usr/bin/find . -name "*.olean" -delete
 	/usr/bin/find . -name "*.lean.test_suite.out" -delete
 	/usr/bin/find . -name "*.lean.status" -delete
 
 lines:
-	wc `git ls-files | grep .lean`
+	wc `git ls-files -x .lean`
