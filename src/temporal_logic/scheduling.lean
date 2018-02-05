@@ -11,12 +11,13 @@ import tactic.norm_num
 open temporal function predicate nat
 
 local infix ` ≃ `:75 := v_eq
-local attribute [instance] classical.prop_decidable
 universe u
 
 namespace temporal
 namespace scheduling
 section scheduling
+
+local attribute [instance, priority 0] classical.prop_decidable
 
 parameter {evt : Type u}
 parameter Γ : cpred
@@ -46,12 +47,17 @@ noncomputable def next' (r' : set evt) (x : ℕ × (evt → ℕ)) : ℕ × (evt 
 let (cur,q) := x,
     min := ↓ i : ℕ, inv q i ∈ r',
     cur' := max min $ cur+1 in
-(cur',
-  λ e,
-  if min = q e then cur'
-  else if q e < min  then q e
-  else if q e < cur' then q e - 1
-                     else q e)
+let q' : evt → ℕ := λ e : evt,
+          match cmp min (q e) with
+            | ordering.gt := q e
+            | ordering.eq := cur'
+            | ordering.lt :=
+              if q e ≤ cur'
+                     then q e - 1
+                     else q e
+          end
+in
+(cur', q')
 
 noncomputable def next : tvar $ ℕ × (evt → ℕ) → ℕ × (evt → ℕ) :=
 ⟪ ℕ, next' ⟫ (⊙r)
@@ -73,6 +79,7 @@ noncomputable def select : tvar evt :=
 
 include Hq Hinj
 
+/- TODO: split into lemmas -/
 lemma q_injective
 : Γ ⊢ ◻(⟨injective⟩ ! q) :=
 begin [temporal]
@@ -80,7 +87,70 @@ begin [temporal]
   t_induction!,
   explicit' [cur₀] { cc } ,
   { henceforth at Hq',
-    explicit' [next] { admit } },
+    explicit' [next,next']
+    { cases Hq',
+      replace Hq'_right := congr_fun Hq'_right,
+      simp at Hq'_right,
+      -- subst q',
+      simp_intros i j,
+      -- rename q qq, -- exfalso, clear_except cur ,
+      intro,
+      wlog i j : q i ≤ q j with Hij,
+      have Hi := Hq'_right i,
+      have Hj := Hq'_right j, clear Hq'_right,
+      have h' : ∀ {x y : ℕ}, x < y → 0 < y,
+      { introv hh₁,
+        apply lt_of_le_of_lt (nat.zero_le _) hh₁, },
+      ordering_cases (cmp (↓ (i : ℕ), inv q i ∈ r') (q i)) with h₁
+      ; simp [next'._match_1] at Hi,
+      { have H' : (↓ (i : ℕ), inv q i ∈ r') < q j := lt_of_lt_of_le h₁ Hij,
+        have H'' : cmp (↓ (i : ℕ), inv q i ∈ r') (q j) = ordering.lt,
+        { simp [cmp,cmp_using_eq_lt,H'] },
+        rw [H'',next'._match_1] at Hj,
+        ite_cases at Hi, rw [if_neg] at Hj,
+        { apply ih, cc, },
+        { apply not_le_of_gt,
+          apply lt_of_lt_of_le _ Hij,
+          apply lt_of_not_ge h, },
+        ite_cases at Hj,
+        { exfalso,
+          clear H'' Hq'_left,
+          rw [← Hj,← a,Hi] at h_1,
+          apply h_1, clear h_1,
+          transitivity q i, apply pred_le,
+          assumption },
+        { apply ih, rw [Hi,Hj,nat.sub_eq_iff_eq_add,nat.sub_add_cancel] at a,
+          exact a, repeat { apply h', assumption }, }, },
+      { apply ih,
+        ordering_cases (cmp (↓ (i : ℕ), inv q i ∈ r') (q j)) with hh₁
+        ; simp [next'._match_1] at Hj,
+        ite_cases at Hj,
+        { simp [Hj,a] at *, clear Hj a,
+          exfalso, revert h, apply not_lt_of_ge _,
+          apply le_of_eq Hi, },
+        { rw ← a at Hj, rw [← Hi,Hj] at h,
+          have h' : q j - 1 < q j,
+          { apply nat.sub_lt (h' hh₁) zero_lt_one, },
+          cases not_le_of_gt h' h, },
+        { cc },
+        { rw h₁ at hh₁,
+          cases not_lt_of_ge Hij hh₁, } },
+      { apply ih,
+        ordering_cases (cmp (↓ (i : ℕ), inv q i ∈ r') (q j)) with hh₁
+        ; simp [next'._match_1] at Hj,
+        ite_cases at Hj,
+        { cc },
+        { exfalso,
+          clear h Hq'_left,
+          rw [← a,Hi] at Hj,
+          rw [Hj] at h₁, revert h₁,
+          apply not_lt_of_ge, apply (add_le_to_le_sub _ _).mp,
+          apply hh₁, apply h' hh₁, },
+        { clear h',
+          rw [← Hi,a,Hj] at h₁,
+          exfalso, revert h₁, apply not_lt_of_ge,
+          apply le_max_left, },
+        { cc }, } } },
 end
 
 open set
@@ -103,6 +173,7 @@ sorry
 --     rw [← ne_empty_iff_exists_mem], exact Hr },
 -- end
 
+/- TODO: split into lemmas -/
 lemma sched_queue_liveness (q₀ : ℕ) (e : evt)
 : Γ ⊢ ⊙(↑e ∊ r) ⋀ q ↑e |+| (q ↑e |-| cur) ≃ ↑q₀ ~>
   q ↑e |+| (q ↑e |-| cur) ≺≺ ↑q₀ ⋁ select ≃ ↑e ⋀ ↑e ∊ r :=
@@ -121,11 +192,13 @@ begin [temporal]
         apply @lt_add_of_pos_right _ _ cur 1,
         norm_num, apply le_max_right, },
       simp [Hq'],
-      repeat { ite_cases },
+      ordering_cases (cmp (↓ (i : ℕ), inv q i ∈ r') (q e)) with h₁
+      ; simp [next'._match_1] at Hq' ⊢,
+      ite_cases at ⊢ Hq',
       { left, subst q₀,
         change _ + _ < _ + _,
         have : q e ≥ cur',
-        { simp [Hq], apply le_of_not_gt h_2 },
+        { simp [Hq], apply le_of_not_ge h,  },
         monotonicity Hcur, },
       { left, subst q₀,
         change _ + _ < _ + _,
@@ -134,25 +207,23 @@ begin [temporal]
           { apply le_of_eq,
             apply sub_eq_zero_of_le,
             transitivity q e, apply nat.sub_le,
-            apply le_of_lt, simp [Hq,h_2], },
+            simp [Hq,h], },
           apply nat.zero_le, },
         apply add_lt_add_of_lt_of_le _ this,
         apply nat.sub_lt_of_pos_le, norm_num,
         apply nat.succ_le_of_lt,
-        apply @lt_of_le_of_lt _ _ _ (↓ (i : ℕ), inv q i ∈ r'),
-        apply nat.zero_le,
-        apply lt_of_le_of_ne _ h,
-        apply le_of_not_gt h_1, },
+        apply lt_of_le_of_lt _ h₁,
+        apply nat.zero_le, },
+      { right, split,
+        { apply inv_eq _ _ Hq_inj',
+          simp [Hq',Hq], },
+        assumption },
       { exfalso,
-        apply not_lt_of_le _ h_1,
+        apply not_lt_of_le _ h₁,
         apply minimum_le,
         simp [has_mem.mem,set.mem],
         rw [inv_is_left_inverse_of_injective Hq_inj],
-        exact hreq },
-      { right, split,
-        { apply inv_eq _ _ Hq_inj',
-          simp [Hq',h,Hq] },
-        assumption } } },
+        exact hreq }, }, }
 end
 
 lemma sched_fairness (e : evt)

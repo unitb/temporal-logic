@@ -755,15 +755,6 @@ do refine ``(one_point_elim _ _ %%e _),
    temporal.intro h,
    return x
 
-meta def update_name (f : string → string) : name → name
- | (name.mk_string s p) := name.mk_string (f s) p
- | x := x
-
-meta def strip_prefix : name → name
- | (name.mk_string s p) := name.mk_string s name.anonymous
- | (name.mk_numeral s p) := name.mk_numeral s name.anonymous
- | name.anonymous := name.anonymous
-
 meta def existsi (e : expr) (id : name) : temporal unit :=
 do `(%%Γ ⊢ ∃∃ _ : %%t, %%intl) ← target,
    infer_type Γ >>= match_expr ``(cpred),
