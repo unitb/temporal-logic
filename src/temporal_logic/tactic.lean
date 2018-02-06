@@ -1406,6 +1406,19 @@ meta def t_induction
       intros xs),
     tactic.swap,
     t_to_expr ```(temporal.induct %%p %%Γ %%ih %%h₀) >>= tactic.exact)
+<|>
+(do `(%%Γ ⊢ ◇%%q ⋁ ◻%%p) ← target,
+    let xs := (with_defaults ids [`ih]).take 1,
+    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= mk_meta_var,
+    ih ← to_expr ``(%%Γ ⊢ ◻(%%p ⟶ -%%q ⟶ ⊙(%%p ⋁ %%q))) >>= assert `ih,
+    b ← is_context_persistent,
+    when (b ∨ pers.is_some) $
+    focus1 (do
+      interactive.henceforth (some ()) (loc.ns [none]),
+      intros xs),
+    tactic.swap,
+    t_to_expr ```(temporal.induct_evt %%p %%q %%ih %%h₀) >>= tactic.exact)
+
 
 meta def wf_induction
   (p : parse texpr)
@@ -1578,8 +1591,10 @@ do `(%%Γ ⊢ %%p) ← target,
    revert h',
    if goal then do
      `(◇ %%p) ← pure p | fail format!"expecting a goal of the form `◇ _`",
-     monotonicity1 none
-   else persistently (refine ``(p_imp_postpone _ %%q %%p _)),
+     monotonicity1 (some ())
+   else
+     interactive.persistent [] >>
+     persistently (refine ``(p_imp_postpone _ %%q %%p _)),
    () <$ intro (some h)
 
 meta def timeless (h : expr) : temporal (option name) :=

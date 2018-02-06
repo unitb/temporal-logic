@@ -8,7 +8,7 @@ import util.function
 import util.logic
 import tactic.norm_num
 
-open temporal function predicate nat
+open temporal function predicate nat set
 
 local infix ` ≃ `:75 := v_eq
 universe u
@@ -173,6 +173,65 @@ sorry
 --     rw [← ne_empty_iff_exists_mem], exact Hr },
 -- end
 
+/-- TODO: Pull out lemmas -/
+lemma sched_queue_safety (q₀ : ℕ) (e : evt)
+  (H : Γ ⊢ ◻◇(q ↑e |+| (q ↑e |-| cur) ≃ ↑q₀))
+: Γ ⊢ ◇◻(q ↑e |+| (q ↑e |-| cur) ≃ ↑q₀) ⋁
+    ◻◇(q ↑e |+| (q ↑e |-| cur) ≺≺ ↑q₀ ⋁ select ≃ ↑e ⋀ ↑e ∊ r) :=
+begin [temporal]
+  -- intro,
+  have H' : ◻( temporal.scheduling.select ≃ ↑e ⋀ ↑e ∊ r
+             ≡ temporal.scheduling.select ≃ ↑e ), admit,
+  rw H', clear H',
+  rw [p_or_comm,← p_not_p_imp],
+  intros H₁, simp [p_not_p_or,p_not_p_and] at H₁,
+  have hJ := temporal.scheduling.q_injective,
+  cases Hq with Hq Hq',
+  eventually H₁,
+  henceforth at H,
+  eventually H ⊢,
+  t_induction,
+  { assumption },
+  { henceforth!,
+    intro Hprev,
+    have H₂ := henceforth_next _ _ H₁,
+    have hJ' := henceforth_next _ _ hJ,
+    replace Hr := henceforth_next _ _ Hr,
+    henceforth at Hr Hq' H₁ H₂ hJ hJ',
+    explicit' [next,next',select]
+    { cases Hq' with Hcur Hq,
+      replace Hq := congr_fun Hq e, simp only at Hq,
+      have Hdec : cur < cur', admit,
+      suffices : q' e ≤ q e ∨ inv q' cur' = e,
+      { subst q₀,
+        cases this with this this,
+        cases lt_or_eq_of_le this,
+        { exfalso, apply H₂.left,
+          change _ + _ < _ + _,
+          apply lt_of_lt_of_le,
+          { apply add_lt_add_right h, },
+          apply add_le_add_left,
+          transitivity,
+          { apply nat.sub_le_sub_left,
+            apply le_of_lt Hdec, },
+          { apply nat.sub_le_sub_right this, } },
+        { simp [h],
+          have : q e - cur' ≤ q e - cur,
+          { apply nat.sub_le_sub_left, apply le_of_lt Hdec },
+          cases lt_or_eq_of_le this,
+          { exfalso, apply H₂.left,
+            change _ + _ < _ + _, simp [h,h_1], },
+          assumption },
+        cases H₂.right this, },
+      ordering_cases (cmp (↓ (i : ℕ), inv q i ∈ r') (q e))
+      ; simp [next'._match_1] at Hq,
+      { left,
+        ite_cases at Hq ; simp [Hq,nat.sub_le], },
+      { right, apply inv_eq _ _ hJ',
+        simp [Hq,Hcur], },
+      { left, rw [Hq], } } }
+end
+
 /- TODO: split into lemmas -/
 lemma sched_queue_liveness (q₀ : ℕ) (e : evt)
 : Γ ⊢ ⊙(↑e ∊ r) ⋀ q ↑e |+| (q ↑e |-| cur) ≃ ↑q₀ ~>
@@ -233,7 +292,7 @@ begin [temporal]
   { intro h, apply this,
     rw [← next_eventually_comm], apply henceforth_next _ _ h, },
   apply inf_often_induction' (q ↑ e |+| (q ↑ e |-| cur)) ; intro q₀,
-  { admit },
+  { intro h, apply temporal.scheduling.sched_queue_safety _ _ h, },
   { apply temporal.scheduling.sched_queue_liveness }
 end
 
