@@ -1393,29 +1393,34 @@ do when l.include_goal (do
 meta def t_induction
   (pers : parse $ (tk "!") ?)
   (p : parse texpr?)
+  (specs : parse $ (tk "using" *> ident*) <|> pure [])
   (ids : parse with_ident_list)
 : tactic unit :=
 (do `(%%Γ ⊢ ◻%%p) ← target,
     let xs := (with_defaults ids [`ih]).take 1,
-    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= mk_meta_var,
     ih ← to_expr ``(%%Γ ⊢ ◻(%%p ⟶ ⊙%%p)) >>= assert `ih,
     b ← is_context_persistent,
     when (b ∨ pers.is_some) $
     focus1 (do
       interactive.henceforth (some ()) (loc.ns [none]),
       intros xs),
+    interactive.henceforth none (loc.ns $ specs.map some),
     tactic.swap,
-    t_to_expr ```(temporal.induct %%p %%Γ %%ih %%h₀) >>= tactic.exact)
+    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= assert `this,
+    tactic.swap,
+    t_to_expr ```(temporal.induct %%p %%Γ %%ih %%h₀) >>=
+      tactic.exact)
 <|>
 (do `(%%Γ ⊢ ◇%%q ⋁ ◻%%p) ← target,
     let xs := (with_defaults ids [`ih]).take 1,
-    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= mk_meta_var,
     ih ← to_expr ``(%%Γ ⊢ ◻(%%p ⟶ -%%q ⟶ ⊙(%%p ⋁ %%q))) >>= assert `ih,
     b ← is_context_persistent,
     when (b ∨ pers.is_some) $
     focus1 (do
       interactive.henceforth (some ()) (loc.ns [none]),
       intros xs),
+    tactic.swap,
+    h₀ ← to_expr ``(%%Γ ⊢ %%p) >>= assert `this,
     tactic.swap,
     t_to_expr ```(temporal.induct_evt %%p %%q %%ih %%h₀) >>= tactic.exact)
 
