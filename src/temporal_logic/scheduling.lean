@@ -272,9 +272,23 @@ open set
 --           inv q' cur' ≤ (↓ i, inv q' i ∈ r)
 --           inv q' cur' ≥ (↓ i, inv q' i ∈ r)
 
+section
+include Hr Hq Hinj
 lemma valid_indices_ne_empty
 : Γ ⊢ ◻([| p, λ r : set evt, { i : ℕ | p i ∈ r } ≠ ∅ |] (⊙r)) :=
-sorry
+begin [temporal]
+  have Hsur := temporal.scheduling.q_injective,
+  replace Hr := henceforth_next _ _ Hr,
+  henceforth! at Hr Hsur ⊢,
+  explicit'
+  { rw not_eq_empty_iff_exists at *,
+    cases Hr with i Hr,
+    existsi inv p i,
+    change _ ∈ r',
+    rw [inv_is_right_inverse_of_surjective Hsur],
+    assumption, }
+end
+end
 
 noncomputable def rank (e : evt) : tvar ℕ :=
 [| p, ↓ i, p i = e |]
@@ -306,7 +320,8 @@ begin [temporal]
   explicit'
   { cases Hq with Hq Hq',
     rw Hq',
-    have : cmp cur' cur' = ordering.eq, admit,
+    have : cmp cur' cur' = ordering.eq,
+    { rw cmp_eq_eq },
     rw [this,next_p],
     change (↓ (i : ℕ), p i ∈ r') ∈ { i | p i ∈ r' },
     apply minimum_mem,
@@ -397,6 +412,8 @@ begin [temporal]
   intros H₁, simp [p_not_p_or,p_not_p_and] at H₁,
   have hJ := temporal.scheduling.q_injective,
   have Hinc := temporal.scheduling.cur_lt_cur',
+  have p_not_empty := temporal.scheduling.valid_indices_ne_empty,
+  have p'_not_empty := henceforth_next _ _ p_not_empty,
   cases Hq with Hq Hq',
   eventually H₁,
   henceforth at H,
@@ -405,15 +422,17 @@ begin [temporal]
   { assumption },
   { henceforth!, intro Hprev,
     have H₂ := henceforth_next _ _ H₁,
-    have hJ := henceforth_next _ _ hJ,
-    henceforth at Hinc Hq' H₁ H₂ hJ,
-    apply temporal.scheduling.non_dec_po _ _ Hprev H₂ Hinc hJ,
+    have hJ' := henceforth_next _ _ hJ,
+    henceforth at Hinc Hq' H₁ H₂ hJ hJ' p_not_empty p'_not_empty,
+    apply temporal.scheduling.non_dec_po _ _ Hprev H₂ Hinc hJ',
     explicit' [next,next',select,rank]
     { cases Hq' with Hcur Hq,
       replace Hq := congr_fun Hq, simp only at Hq,
       rw [or_comm,or_iff_not_imp], intro Hncur,
-      have p_not_empty : { i : ℕ | p i = e } ≠ ∅, admit,
-      have p'_not_empty : { i : ℕ | p' i = e } ≠ ∅, admit,
+      have p_not_empty : { i : ℕ | p i = e } ≠ ∅,
+      { rw ne_empty_iff_exists_mem, apply hJ e, },
+      have p'_not_empty : { i : ℕ | p' i = e } ≠ ∅,
+      { rw ne_empty_iff_exists_mem, apply hJ' e, },
       apply (le_minimum_iff_forall_le p_not_empty (↓ (i : ℕ), p' i = e)).2,
       assume j (Hj : p j = e),
       apply (minimum_le_iff_exists_le p'_not_empty j).2,
@@ -421,7 +440,7 @@ begin [temporal]
       apply next_rec _ cur cur' p p' r' Hj Hcur Hq,
       { intros, refl },
       { intros h h',
-        clear H₁ hJ hJ p_not_empty p'_not_empty,
+        clear H₁ hJ hJ' p_not_empty p'_not_empty,
         rw ← Hq at h', cases H₂.right h', },
       { intros, apply nat.sub_le, } }, },
 end
