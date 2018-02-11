@@ -66,7 +66,7 @@ begin
   unfold_coes, simp [Wx₀,Wx₀_f],
   apply_epsilon_spec,
 end
-set_option trace.app_builder true
+
 include H SIM
 lemma J_inv_in_w
 : Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃o,w,v⦄) :=
@@ -165,7 +165,7 @@ begin
   let p' : pred' (unit × plift α) := p ! prj,
   have _inst : inhabited (plift α) := ⟨ plift.up (default α) ⟩,
   let J' : pred' (unit × plift α × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
-  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' _ _ _ o o Γ _,
+  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' _inst _ _ o o Γ _,
   begin [temporal]
     revert this,
     let f : tvar (plift α) → tvar α := λ v, ⟨plift.down⟩ ! v,

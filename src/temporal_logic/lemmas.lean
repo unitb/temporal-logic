@@ -358,8 +358,7 @@ begin [temporal]
   ; cases h with h₀ h₁
   ; [eventually h₁ ⊢,eventually h₀ ⊢]
   ; henceforth at *
-  ; split
-  ; assumption,
+  ; tauto
 end
 
 lemma henceforth_delay {p q : cpred} {Γ}

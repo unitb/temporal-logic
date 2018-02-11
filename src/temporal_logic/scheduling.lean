@@ -393,8 +393,8 @@ lemma subsumes_requested (e : evt)
 : Γ ⊢ ◻( select ≃ ↑e ⋀ ↑e ∊ r
              ≡ select ≃ ↑e ) :=
 begin [temporal]
-  have Hr := temporal.scheduling.sched_inv,
-  henceforth! at ⊢ Hr,
+  have Hr' := temporal.scheduling.sched_inv,
+  henceforth! at ⊢ Hr',
   explicit' [select]
   { split,
     { simp, intros, assumption },

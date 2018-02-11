@@ -57,7 +57,7 @@ by { dunfold temporal, apply_instance }
 namespace temporal
 open tactic applicative
 open interactive
-open tactic.interactive (rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr')
+open tactic.interactive (resetI rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr')
 open has_to_tactic_format
 open has_map list (filter)
 
@@ -319,7 +319,7 @@ begin
   replace h := λ h', judgement_trans Γ _ _ h' h,
   induction H with x xs,
   { simp at h, simp [with_h_asms,h], },
-  { simp at h, simp_intros [with_h_asms],
+  { simp at h, simp_intros [with_h_asms], resetI,
     apply H_ih , intros,
     apply h,
     rw henceforth_and,
@@ -424,6 +424,7 @@ do b ← is_context_persistent,
      refine ``(%%h _),
      -- -- `[simp only [temporal.with_h_asms]],
      intro_lst $ Γ.local_pp_name :: `_ :: asms.map expr.local_pp_name,
+     resetI,
      get_local hnm >>= tactic.clear
 
 meta def interactive.persistent (excp : parse without_ident_list) : temporal unit :=
@@ -613,8 +614,7 @@ do let (x,y) := if cfg.symm then (y',x')
      interactive.persistent [],
      h ← get_local h',
      `(%%Γ ⊢ _) ← target,
-     rule ← to_expr ``(henceforth_str (%%x ≃ %%y) %%Γ),
-     rule ← mk_mapp `predicate.p_impl_revert [none,Γ,none,none,rule,h] <|> pure h,
+     rule ← to_expr ``(predicate.p_impl_revert (henceforth_str _ %%Γ) %%h) <|> pure h,
      repeat (() <$ apply rule <|> refine ``(v_eq_refl _ _) <|> apply_timeless_congr),
      all_goals $
        exact rule,
@@ -924,6 +924,8 @@ do vs ← list_state_vars `(ℕ),
                         tactic.clear h),
    tactic.clear σ,
    mmap' tactic.clear vs'.reverse
+
+meta def resetI : temporal unit := resetI
 
 open function
 meta def explicit'
@@ -1599,7 +1601,7 @@ do `(%%Γ ⊢ %%p) ← target,
      monotonicity1 (some ())
    else
      interactive.persistent [] >>
-     persistently (refine ``(p_imp_postpone _ %%q %%p _)),
+     persistently (do `(%%Γ ⊢ ◇%%q ⟶ %%p) ← target, refine ``(p_imp_postpone %%Γ %%q %%p _)),
    () <$ intro (some h)
 
 meta def timeless (h : expr) : temporal (option name) :=
