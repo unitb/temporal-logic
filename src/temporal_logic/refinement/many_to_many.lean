@@ -1,5 +1,6 @@
 import ..scheduling
 import ..fairness
+import ..spec
 
 import util.predicate
 
@@ -43,27 +44,18 @@ section specs
 
 parameters p q cs₀ fs₀ cs₁ fs₁
 
-def SPEC₀.saf (v : tvar α) (o : tvar γ) : cpred :=
-p ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ o,v | A i ⟧)
-
 def SPEC₀.saf' (v : tvar α) (o : tvar γ) (sch : tvar aevt) : cpred :=
 p ! ⦃ o,v ⦄ ⋀
 ◻(∃∃ i, ⊙sch ≃ ↑i ⋀ ⟦ o,v | A i ⟧)
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
-SPEC₀.saf v o ⋀
-∀∀ i, sched (cs₀ i ! ⦃o,v⦄) (fs₀ i ! ⦃o,v⦄) ⟦ o,v | A i ⟧
+spec p cs₀ fs₀ A ⦃o,v⦄
 
 def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ o,v | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ o,v | C i ⟧
+spec q cs₁ fs₁ C ⦃o,v⦄
 
 def SPEC₂ (v : tvar β) (o : tvar γ) (s : tvar cevt) : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, s ≃ ↑i ⋀ ⟦ o,v | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) (s ≃ ↑i ⋀ ⟦ o,v | C i ⟧)
+spec_sch q cs₁ fs₁ C ⦃o,v⦄ s
 
 end specs
 
@@ -499,43 +491,9 @@ include inh_cevt
 variables [schedulable cevt]
 
 lemma refinement_SPEC₁
-: Γ ⊢ SPEC₁ v o ⟶ (∃∃ sch, SPEC₂ v o sch) :=
-begin [temporal]
-  intro h,
-  let r : tvar (set cevt) := ⟪ ℕ, λ s s', { e | C e s s' } ⟫ ⦃o,v⦄ ⦃⊙o,⊙v⦄,
-  have hr : ◻-(r ≃ (∅ : set cevt)),
-  { simp [SPEC₁] at h,
-    casesm* _ ⋀ _,
-    select Hact : ◻(p_exists _),
-    henceforth! at Hact ⊢,
-    explicit' [r]
-    { rw not_eq_empty_iff_exists, exact Hact }, },
-  have h' := temporal.scheduling.scheduler Γ r hr,
-  cases h' with sch h',
-  existsi sch,
-  simp [SPEC₁,SPEC₂] at ⊢ h,
-  casesm* _ ⋀ _,
-  split* ; try { auto },
-  { select h' : ◻(p_exists _),
-    select hJ : ◻(_ ∊ _),
-    persistent, henceforth at hJ h' ⊢,
-    existsi sch with hh,
-    split,
-    { rw hh, },
-    { simp [r] at hJ, clear a_1 hr r,
-      explicit'
-      { subst sch, assumption } } },
-  { introv, intros h₀ h₁,
-    rename a_3 h₂,
-    replace h₂ := h₂ x h₀ h₁,
-    replace a_1 := a_1 x,
-    persistent,
-    have : ↑x ∊ r ≡ ⟦ o,v | C x ⟧,
-    { simp [r], clear a_1 a hr r,
-      explicit' { refl }, },
-    rw [this,this] at a_1,
-    auto, }
-end
+: SPEC₁ v o ⟹ (∃∃ sch, SPEC₂ v o sch) :=
+assume Γ,
+sch_intro _ _ _ _ _ _
 
 end obligations
 open function

@@ -5,8 +5,9 @@ universe variables u u₀ u₁ u₂
 
 namespace temporal
 namespace feasibility
-section feasibility
 open fairness predicate nat
+local infix ` ≃ `:75 := v_eq
+section feasibility
 
 parameters {α : Type u}
 parameters {evt : Type u₂}
@@ -22,13 +23,8 @@ parameter init_INV : ∀ s, s ⊨ p → s ⊨ J
 parameter evt_FIS : ∀ e s, s ⊨ J → ∃ s', A e s s'
 parameter evt_INV : ∀ e s s', A e s s' → s ⊨ J → s' ⊨ J
 
-def SPEC₀.saf (v : tvar α) : cpred :=
-p ! v ⋀
-◻(∃∃ i, ⟦ v | A i ⟧)
-
 def SPEC₀ (v : tvar α) : cpred :=
-SPEC₀.saf v ⋀
-∀∀ i, sched (cs₀ i ! v) (fs₀ i ! v) ⟦ v | A i ⟧
+spec p cs₀ fs₀ A v
 
 def p' : pred' (unit × α) :=
 p ! pair.snd
@@ -122,7 +118,7 @@ begin
 end
 
 include J init_INV init_FIS evt_INV evt_FIS Hpo'
-lemma feasibility
+lemma feasibility [schedulable evt]
 : ⊩ (∃∃ v, SPEC₀ v) :=
 begin [temporal]
   have :=  @one_to_one.refinement α unit unit evt
@@ -136,13 +132,13 @@ begin [temporal]
        temporal.feasibility.J' _ _
        temporal.feasibility.SIM₀'
        temporal.feasibility.SIM'
-       o _ Γ _,
+       o _ _ Γ _,
   { simp [one_to_one.SPEC₀,SPEC₀] at this ⊢,
     casesm* [p_exists _, _ ⋀ _],
     existsi _, auto,
     split,
-    { simp [SPEC₀.saf,one_to_one.SPEC₀.saf,A',p',action_on' _ _ prod.snd] at *,
-      assumption, },
+    { simp [A',p',action_on' _ _ prod.snd] at *,
+      tauto, },
     { simp [A',action_on' _ _ prod.snd] at *,
       assumption, }, },
   apply temporal.feasibility.Hpo' ,

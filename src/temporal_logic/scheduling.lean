@@ -1,5 +1,6 @@
 
 import .lemmas
+import .spec
 
 import data.set.basic
 
@@ -13,7 +14,7 @@ import tactic.norm_num
 open temporal function predicate nat set
 
 local infix ` ≃ `:75 := v_eq
-universe u
+universes u v
 
 namespace temporal
 namespace scheduling
@@ -549,7 +550,55 @@ begin [temporal]
   exact Hcur,
 end
 
+section spec
+
+variable [schedulable evt]
+variable {α : Type v}
+variables p : pred' α
+variables cs fs : evt → pred' α
+variables A : evt → act α
+
+lemma sch_intro (v : tvar α)
+: Γ ⊢ spec p cs fs A v ⟶ (∃∃ sch, spec_sch p cs fs A v sch) :=
+begin [temporal]
+  intro h,
+  let r : tvar (set evt) := ⟪ ℕ, λ s s', { e | A e s s' } ⟫ v ⊙v,
+  have hr : ◻-(r ≃ (∅ : set evt)),
+  { simp [spec] at h,
+    casesm* _ ⋀ _,
+    select Hact : ◻(p_exists _),
+    henceforth! at Hact ⊢,
+    explicit' [r]
+    { rw not_eq_empty_iff_exists, exact Hact }, },
+  have h' := temporal.scheduling.scheduler hr,
+  cases h' with sch h',
+  existsi sch,
+  simp  at ⊢ h,
+  casesm* _ ⋀ _,
+  split!* ; try { auto },
+  { select h' : ◻(p_exists _),
+    select hJ : ◻(_ ∊ _),
+    henceforth! at hJ h' ⊢,
+    existsi sch with hh,
+    split,
+    { rw hh, },
+    { simp [r] at hJ, clear a_1 hr r,
+      explicit'
+      { subst sch, assumption } } },
+  { introv, intros h₀ h₁,
+    rename a_3 h₂,
+    replace h₂ := h₂ x h₀ h₁,
+    replace a_1 := a_1 x,
+    persistent,
+    have : ↑x ∊ r ≡ ⟦ v | A x ⟧,
+    { simp [r], clear a_1 a hr r,
+      explicit' { refl }, },
+    rw [this,this] at a_1,
+    auto, }
+end
+
+end spec
 end scheduling
 end scheduling
-export scheduling (schedulable)
+export scheduling (schedulable sch_intro)
 end temporal

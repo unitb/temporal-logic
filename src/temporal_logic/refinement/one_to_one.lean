@@ -1,7 +1,11 @@
 import .simulation
 
+import ..scheduling
+import ..spec
+
 universe variables u u₀ u₁ u₂
 open predicate nat
+local infix ` ≃ `:75 := v_eq
 
 namespace temporal
 
@@ -25,27 +29,19 @@ section specs
 
 parameters p q cs₀ fs₀ cs₁ fs₁
 
-def SPEC₀.saf (v : tvar α) (o : tvar γ) : cpred :=
-p ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ o,v | A i ⟧)
 
 def SPEC₀.saf' (v : tvar α) (o : tvar γ) (sch : tvar evt) : cpred :=
 p ! ⦃ o,v ⦄ ⋀
 ◻(∃∃ i, sch ≃ ↑i ⋀ ⟦ o,v | A i ⟧)
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
-SPEC₀.saf v o ⋀
-∀∀ i, sched (cs₀ i ! ⦃o,v⦄) (fs₀ i ! ⦃o,v⦄) ⟦ o,v | A i ⟧
+spec p cs₀ fs₀ A ⦃o,v⦄
 
 def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, ⟦ o,v | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ o,v | C i ⟧
+spec q cs₁ fs₁ C ⦃o,v⦄
 
 def SPEC₂ (v : tvar β) (o : tvar γ) (s : tvar evt) : cpred :=
-q ! ⦃ o,v ⦄ ⋀
-◻(∃∃ i, s ≃ ↑i ⋀ ⟦ o,v | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) (s ≃ ↑i ⋀ ⟦ o,v | C i ⟧)
+spec_sch q cs₁ fs₁ C ⦃o,v⦄ s
 
 end specs
 
@@ -154,9 +150,8 @@ begin [temporal]
   select h : ◻p_exists _,
   henceforth at h ⊢,
   cases h with e h,
-  explicit
-  { simp [Next_c,on_fun,map_right] at a_1 ⊢ h,
-    cases h, subst e, auto },
+  explicit' [Next_c,sched]
+  { cc }
 end
 
 include SIM₀ SIM
@@ -361,12 +356,13 @@ begin [temporal]
 end
 end refinement_SPEC₂
 
-lemma refinement_SPEC₁
+lemma refinement_SPEC₁ [schedulable evt]
 : SPEC₁ v o ⟹ (∃∃ sch, SPEC₂ v o sch) :=
-sorry
+assume Γ,
+sch_intro _ _ _ _ _ _
 
 include SIM₀ SIM
-lemma refinement
+lemma refinement [schedulable evt]
   (h : ∀ c a e sch, one_to_one_po' (SPEC₁ c o ⋀ SPEC₀.saf' a o sch ⋀ ◻(J ! ⦃o,a,c⦄))
          ⟨cs₁ e!pair.snd,fs₁ e!pair.snd,C' e⟩
          ⟨cs₀ e,fs₀ e,A e⟩ ⦃sch,o,c⦄ ⦃o,a⦄)
