@@ -14,6 +14,7 @@ import tactic.norm_num
 open temporal function predicate nat set
 
 local infix ` ≃ `:75 := v_eq
+local prefix `♯ `:0 := cast (by simp)
 universes u v
 
 namespace temporal
@@ -562,14 +563,15 @@ lemma sch_intro (v : tvar α)
 : Γ ⊢ spec p cs fs A v ⟶ (∃∃ sch, spec_sch p cs fs A v sch) :=
 begin [temporal]
   intro h,
-  let r : tvar (set evt) := ⟪ ℕ, λ s s', { e | A e s s' } ⟫ v ⊙v,
+  let r : tvar (set evt) := ⟪ ℕ, λ s s', { e | s ⊨ cs e ∧ s ⊨ fs e ∧ A e s s' } ⟫ v ⊙v,
   have hr : ◻-(r ≃ (∅ : set evt)),
   { simp [spec] at h,
     casesm* _ ⋀ _,
     select Hact : ◻(p_exists _),
     henceforth! at Hact ⊢,
     explicit' [r]
-    { rw not_eq_empty_iff_exists, exact Hact }, },
+    { simp [and_assoc] at Hact,
+      simp [not_eq_empty_iff_exists,Hact], }, },
   have h' := temporal.scheduling.scheduler hr,
   cases h' with sch h',
   existsi sch,
@@ -580,20 +582,20 @@ begin [temporal]
     select hJ : ◻(_ ∊ _),
     henceforth! at hJ h' ⊢,
     existsi sch with hh,
-    split,
-    { rw hh, },
-    { simp [r] at hJ, clear a_1 hr r,
-      explicit'
-      { subst sch, assumption } } },
+    { explicit' [r]
+      { subst sch, tauto } } },
   { introv, intros h₀ h₁,
     rename a_3 h₂,
     replace h₂ := h₂ x h₀ h₁,
     replace a_1 := a_1 x,
     persistent,
-    have : ↑x ∊ r ≡ ⟦ v | A x ⟧,
-    { simp [r], clear a_1 a hr r,
-      explicit' { refl }, },
-    rw [this,this] at a_1,
+    have H₀ : ↑x ∊ r ≡ cs x ! v ⋀ fs x ! v ⋀ ⟦ v | A x ⟧,
+    { explicit' [r]
+      { simp [and_assoc] }, },
+    have H₁ : sch ≃ ↑x ⋀ ↑x ∊ r ≡ cs x ! v ⋀ fs x ! v ⋀ (sch ≃ ↑x ⋀ ⟦ v | A x ⟧),
+    { explicit' [r]
+      { apply eq.to_iff, ac_refl }, },
+    rw [H₁,H₀] at a_1,
     auto, }
 end
 

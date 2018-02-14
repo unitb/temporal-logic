@@ -20,6 +20,7 @@ parameters {p : pred' (γ×α)} {q : pred' (γ×β)}
 parameters (A : aevt → act (γ×α)) (C : cevt → act (γ×β))
 parameters {cs₀ fs₀ : aevt → pred' (γ×α)} {cs₁ fs₁ : cevt → pred' (γ×β)}
 parameters (J : pred' (γ×α×β))
+parameters (Jₐ : pred' (γ×α))
 parameter ref : aevt → cevt → Prop
 parameter wit : Π a, subtype (ref a) → cpred
 
@@ -69,15 +70,22 @@ parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o' ce,
   (o,w,v) ⊨ J →
+  (o,w) ⊨ Jₐ →
+  (o,v) ⊨ cs₁ ce →
+  (o,v) ⊨ fs₁ ce →
   C ce (o,v) (o',v') →
   ∃ ae w', (o',w',v') ⊨ J ∧
            ref ae ce ∧
+           (o,w) ⊨ cs₀ ae ∧
+           (o,w) ⊨ fs₀ ae ∧
            A ae (o,w) (o',w')
 
 section obligations
 
 parameters (v : tvar β) (o : tvar γ)
 parameters (Γ : cpred)
+
+-- parameter HJₐ : Γ ⊢ ∀∀ w, SPEC₀ w o ⟶ ◻(Jₐ ! ⦃o,w⦄)
 
 parameters β γ
 variable Hpo : ∀ (e : aevt) (w : tvar α) (sch : tvar aevt),
@@ -102,16 +110,25 @@ open prod temporal.prod
 
 def Next_a : act $ γ × aevt × α :=
 λ σ σ',
-∃ e, σ.2.1 = e ∧ (A e on map_right snd) σ σ'
+∃ e, σ.2.1 = e ∧
+      map_right snd σ ⊨ cs₀ e ∧
+      map_right snd σ ⊨ fs₀ e ∧
+      (A e on map_right snd) σ σ'
 
 def Next_c : act $ γ × cevt × β :=
 λ σ σ',
-∃ e, σ.2.1 = e ∧ (C e on map_right snd) σ σ'
+∃ e, σ.2.1 = e ∧
+      map_right snd σ ⊨ cs₁ e ∧
+      map_right snd σ ⊨ fs₁ e ∧
+      (C e on map_right snd) σ σ'
 
 section J
 def J' : pred' (γ × (aevt × α) × (cevt × β)) :=
 J ! ⟨ prod.map_right $ prod.map prod.snd prod.snd ⟩ ⋀
 ⟨ λ ⟨_, a, c⟩, ref a.1 c.1 ⟩
+
+def JJₐ : pred' (γ × aevt × α) :=
+Jₐ ! ⟨ prod.map_right snd ⟩
 
 def p' : pred' (γ × aevt × α) :=
 p ! ⟨prod.map_right prod.snd⟩
@@ -134,6 +151,8 @@ noncomputable def Wf_f : tvar (cevt → β → γ → γ → aevt × α → aevt
       ε w' : aevt × α,
              (o',w'.2,v') ⊨ J ∧
              ref w'.1 ce ∧
+             (o,w.2) ⊨ cs₀ w'.1 ∧
+             (o,w.2) ⊨ fs₀ w'.1 ∧
              A w'.1 (o,w.2) (o',w'.2) ⟫
 
 noncomputable def Wf : tvar (aevt × α → aevt × α) :=
@@ -159,6 +178,8 @@ lemma Wf_def' (σ : ℕ) (w)
   ε w' : _ × α,
          (succ σ ⊨ o,w'.2,succ σ ⊨ v) ⊨ J ∧
                ref w'.1 (σ ⊨ sch_c) ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ cs₀ w'.1 ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ fs₀ w'.1 ∧
                A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2) :=
 by repeat { unfold_coes <|> simp [Wf,Wf_f] }
 
@@ -168,10 +189,14 @@ lemma Wf_def (σ : ℕ) (w) (a b)
   a = (ε w' : _ × α,
          (succ σ ⊨ o,w'.2,succ σ ⊨ v) ⊨ J ∧
                ref w'.1 (σ ⊨ sch_c) ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ cs₀ w'.1 ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ fs₀ w'.1 ∧
                A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2)).1 ∧
   b = (ε w' : aevt × α,
          (succ σ ⊨ o,w'.2,succ σ ⊨ v) ⊨ J ∧
                ref w'.1 (σ ⊨ sch_c) ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ cs₀ w'.1 ∧
+               (σ ⊨ o,σ ⊨ w) ⊨ fs₀ w'.1 ∧
                A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2)).2 :=
 by repeat { unfold_coes <|> simp [Wf,Wf_f,ext] }
 
@@ -179,13 +204,12 @@ variable valid_witness
 : Γ ⊢ Wtn ⦃sch_a,w⦄
 
 lemma abstract_sch (e : aevt)
-: Γ ⊢ sch_a ≃ e ⋀ ⟦ o,w | A e ⟧ ≡ sch_a ≃ e ⋀ ⟦ o,sch_a,w | Next_a ⟧ :=
+: Γ ⊢ sch_a ≃ e ⋀ cs₀ e ! ⦃o,w⦄ ⋀ fs₀ e ! ⦃o,w⦄ ⋀ ⟦ o,w | A e ⟧ ≡
+      sch_a ≃ e ⋀ ⟦ o,sch_a,w | Next_a ⟧ :=
 begin
-  lifted_pred,
+  lifted_pred [Next_a,on_fun],
   split ; intro h ; split
-  ; cases h with h₀ h₁ ; try { assumption },
-  { simp [Next_a,on_fun,h₀], auto, },
-  { simp [Next_a,on_fun,h₀] at h₁, auto }
+  ; casesm* _ ∧ _ ; subst e ; tauto,
 end
 
 section Simulation_POs
@@ -247,42 +271,46 @@ ref
 
 include SIM₀ SIM H valid_witness
 
+lemma abs_J_inv_in_w
+: Γ ⊢ ◻(Jₐ ! ⦃o,w⦄) :=
+sorry
+
 lemma J_inv_in_w
 : Γ ⊢ ◻(J ! ⦃o,w,v⦄) :=
 begin [temporal]
+  have := temporal.many_to_many.abs_J_inv_in_w sch_a H w valid_witness,
   simp [Wtn,SPEC₂] at valid_witness H,
   cases valid_witness with h₀ h₀,
   casesm* _ ⋀ _,
   apply induct _ _ _ _,
-  { persistent,
-    select H₀ : ◻p_exists _,
-    henceforth at h₀_1 H₀ ⊢,
+  { select H₀ : ◻p_exists _,
+    henceforth! at h₀_1 H₀ ⊢ this,
     explicit'
     { intro h,
-      cases h₀_1, subst w',
-      apply_epsilon_spec, simp, tauto, } },
+      casesm* [_ ∧ _,Exists _],
+      subst H₀_w, subst w',
+      apply_epsilon_spec, simp,
+      apply SIM ; auto, } },
   { select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select Hq : q ! _,
     clear_except Hw SIM₀ Hq,
     explicit'
     { cases Hw, subst w, apply_epsilon_spec,
-      simp, tauto, } }
+      simp, tauto, } },
 end
 
 lemma witness_imp_SPEC₀_saf
-  (h : Γ ⊢ Wtn ⦃sch_a,w⦄)
 : Γ ⊢ SPEC₀.saf' w o sch_a :=
 begin [temporal]
-  have hJ := temporal.many_to_many.J_inv_in_w sch_a H w valid_witness ,
-  clear valid_witness,
-  simp [SPEC₀.saf',SPEC₂,Wtn] at h ⊢ H,
+  have hJ  := temporal.many_to_many.J_inv_in_w sch_a H w valid_witness ,
+  have hJₐ := temporal.many_to_many.abs_J_inv_in_w sch_a H w valid_witness,
+  simp [SPEC₀.saf',SPEC₂,Wtn] at valid_witness ⊢ H,
   casesm* _ ⋀ _,
   split,
   { clear SIM,
     henceforth at hJ,
     select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select h' : q ! _,
-    -- rw [← pair.snd_mk sch_a w,h],
     explicit'
     { cases Hw, subst w,
       apply_epsilon_spec,
@@ -290,12 +318,13 @@ begin [temporal]
   { clear SIM₀,
     select h : ◻(_ ≃ _),
     select h' : ◻(p_exists _),
-    persistent,
-    henceforth at h h' ⊢ hJ ,
+    henceforth! at h h' ⊢ hJ hJₐ,
     explicit'
     { cases h, subst w', subst sch_a',
+      casesm* [_ ∧ _,Exists _],
+      subst h'_w,
       apply_epsilon_spec, simp,
-      tauto, } },
+      apply SIM ; auto, } },
 end
 
 omit H
@@ -308,8 +337,8 @@ lemma SPEC₂_imp_SPEC₁
 begin [temporal]
   simp only [SPEC₁,SPEC₂,temporal.many_to_many.SPEC₁,temporal.many_to_many.SPEC₂],
   monotonicity, apply ctx_p_and_p_imp_p_and',
-  { monotonicity, simp, intros x h₀ h₁,
-    existsi x, exact h₁ },
+  { monotonicity, simp, intros x, intros,
+    existsi x, tauto },
   { intros h i h₀ h₁,
     replace h := h _ h₀ h₁,
     revert h, monotonicity, simp, }
@@ -325,17 +354,17 @@ include valid_witness fs₁ cs₁ Γ H
 lemma sch_w_spec
 : Γ ⊢ ◻(ref' (⊙sch_a) sch_c) :=
 begin [temporal]
-  have hJ := temporal.many_to_many.J_inv_in_w _ H _ valid_witness,
+  have hJ  := temporal.many_to_many.J_inv_in_w _ H _ valid_witness,
+  have hJₐ := temporal.many_to_many.abs_J_inv_in_w _ H _ valid_witness,
   simp [Wtn,SPEC₂] at valid_witness H,
   cases valid_witness with Hw' Hw,
   cases H with H H₀,
   cases H with H₁ H₂,
-  persistent,
-  -- have H' := temporal.many_to_many.H',
-  henceforth at Hw ⊢ hJ H₂,
+  henceforth! at Hw ⊢ hJ hJₐ H₂,
   explicit'
-  { cases Hw, subst sch_a', apply_epsilon_spec,
-    simp, apply SIM ; auto, },
+  { cases Hw, subst sch_a', casesm* [_∧_,Exists _],
+    subst sch_c, apply_epsilon_spec,
+    simp, auto, },
 end
 
 end
@@ -343,19 +372,24 @@ end
 include H valid_witness
 lemma H_C_imp_A (e : cevt) (e' : aevt)
   -- (Hsim : ref e' e)
-: Γ ⊢ ◻(sch_c ≃ ↑e ⟶ ⊙sch_a ≃ ↑e' ⟶ ⟦ o,v | C e ⟧ ⟶ ⟦ o,w | A e' ⟧) :=
+: Γ ⊢ ◻(sch_c ≃ ↑e ⟶ ⊙sch_a ≃ ↑e' ⟶
+        cs₁ e ! ⦃o,v⦄ ⋀ fs₁ e ! ⦃o,v⦄ ⋀ ⟦ o,v | C e ⟧ ⟶
+        cs₀ e' ! ⦃o,w⦄ ⋀ fs₀ e' ! ⦃o,w⦄ ⋀ ⟦ o,w | A e' ⟧) :=
 begin [temporal]
   have hJ := temporal.many_to_many.J_inv_in_w sch_a H w valid_witness,
+  have hJₐ := temporal.many_to_many.abs_J_inv_in_w sch_a H w valid_witness,
   simp [Wtn] at valid_witness,
   cases valid_witness with h₀ h₁,
-  clear_except hJ SIM h₁,
-  persistent,
-  henceforth at *,
+  cases H with H H₀,
+  cases H with H₁ H₂,
+  clear_except hJ hJₐ SIM h₁ H₂,
+  henceforth! at *,
   explicit'
-  { intros, cases h₁, subst w', subst sch_a', substs e',
+  { intros, cases h₁, subst w', subst sch_c,
+    subst sch_a', substs e',
+    casesm* [_ ∧ _, Exists _], subst e,
     apply_epsilon_spec,
-    simp, subst e,
-    tauto, },
+    simp, apply SIM ; auto, },
 end
 omit valid_witness H
 /- latest idea: sch_a should be part of concrete state?
@@ -377,7 +411,7 @@ begin
   begin [temporal]
     simp, intros h₀ h₁ h₂, split*,
     { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo _ ; try { auto }, },
-    { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, auto, },
+    { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, },
     { auto }
   end,
   constructor,
@@ -393,15 +427,17 @@ begin
     casesm* _ ⋀ _,
     select Hw : temporal.many_to_many.Wtn _,
     select hJ : ◻(J ! _),
+    select H  : temporal.many_to_many.SPEC₂ _ _ _,
     have := temporal.many_to_many.H_C_imp_A _ _ _ _ Hw x e
     ; try { auto <|> apply temporal.many_to_many.sch_w_spec },
-    clear_except this SIM₀ SIM Hw hJ,
+    cases H with H H₀,
+    cases H with H₁ H₂,
+    clear_except this SIM₀ SIM Hw hJ H₂,
     simp [Wtn] at Hw, cases Hw with Hw' Hw,
-    persistent,
-    henceforth at ⊢ this Hw hJ,
+    henceforth! at ⊢ this Hw hJ H₂,
     explicit'
     { intros, cases Hw, simp only [ce'._match_2,ce'._match_1] at *,
-      casesm* _ ∧ _,
+      casesm* [_ ∧ _, Exists _],
       apply this _ _ ; tauto <|> cc, },
   end
 end
@@ -427,7 +463,7 @@ begin [temporal]
   replace h := h ce Hce H₀ H₁,
   revert h,
   monotonicity!,
-  lifted_pred,
+  lifted_pred, admit,
 end
 
 lemma many_to_many
@@ -452,16 +488,18 @@ begin [temporal]
       simp, auto, }, },
   { clear_except SIM SIM₀ Hw H,
     have hJ := temporal.many_to_many.J_inv_in_w _ H _ Hw,
+    have hJₐ := temporal.many_to_many.abs_J_inv_in_w _ H _ Hw,
     simp [Wtn,SPEC₂] at H Hw,
     casesm _ ⋀ _,
     monotonicity!,
-    simp, intros ce h₀ h₁,
+    simp, intros ce h₀ h₁ h₂ h₃,
     select Hw : ◻(_ ≃ _),
-    henceforth at Hw hJ,
+    henceforth at Hw hJ hJₐ,
     explicit'
     { cases Hw, subst w', subst ce,
       apply_epsilon_spec,
-      simp, auto, }, },
+      simp, apply SIM ; clear SIM,
+      repeat { auto }, }, },
   { intros h i,
     apply temporal.many_to_many.sched_ref
     ; repeat { auto <|> intro }, },

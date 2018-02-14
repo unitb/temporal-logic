@@ -19,7 +19,7 @@ def sf : cpred :=
 ◻◇p ⟶ ◻◇A
 
 def sched : cpred :=
-◇◻p ⟶ ◻◇q ⟶ ◻◇A
+◇◻p ⟶ ◻◇q ⟶ ◻◇(p ⋀ q ⋀ A)
 
 instance persistent_sched : persistent (sched p q A) :=
 by { unfold sched, apply_instance }
@@ -31,7 +31,7 @@ structure one_to_one_po (S p q A p' q' A' : cpred) : Prop :=
   (delay : S ⟹ (p' ⋀ q' ~> p))
   (resched : S ⟹ (p' ⋀ q' ~> q))
   (stable : S ⟹ (◻◇p ⟶ ◇◻p' ⟶ ◇◻p))
-  (sim : S ⟹ ◻(A ⟶ A'))
+  (sim : S ⟹ ◻(p ⟶ q ⟶ A ⟶ p' ⋀ q' ⋀ A'))
 
 structure event (α : Type u₀) :=
 (p q : pred' α) (A : act α)
@@ -57,7 +57,7 @@ po.delay Γ hS
 private def H₁ : Γ ⊢ ◻◇p ⟶ ◇◻p' ⟶ ◇◻p :=
 po.stable Γ hS
 
-private def H₂ : Γ ⊢ ◻(A ⟶ A') :=
+private def H₂ : Γ ⊢ ◻(p ⟶ q ⟶ A ⟶ p' ⋀ q' ⋀ A') :=
 po.sim Γ hS
 private def H₃ : Γ ⊢ p' ⋀ q' ~> q :=
 po.resched Γ hS
@@ -80,7 +80,10 @@ begin [temporal]
     apply inf_often_of_leads_to H₃ swc, },
   replace a := a wc sc, revert a,
   { have H₂ := H₂ po Γ hS,
-    persistent, monotonicity, apply H₂, },
+    intros H₃, replace H₃ := coincidence wc H₃,
+    henceforth! at H₃ ⊢, eventually H₃ ⊢,
+    casesm* _ ⋀ _,
+    apply H₂ ; assumption, },
 end
 
 end one_to_one
@@ -98,7 +101,7 @@ structure many_to_many_po (S : cpred) (w p q A : t → cpred) (p' q' A' : cpred)
   (delay : S ⟹ ∀∀ i, p' ⋀ q' ⋀ w i ~> p i ⋀ q i ⋀ w i)
   (stable : S ⟹ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i))
   (wfis : S ⟹ ◻(p' ⋀ q' ⟶ ∃∃ i, w i))
-  (sim : S ⟹ ∀∀ i, ◻(A i ⟶ A'))
+  (sim : S ⟹ ∀∀ i, ◻(p i ⟶ q i ⟶ A i ⟶ p' ⋀ q' ⋀ A'))
 def many_to_many_po' {α β} (S : cpred) (w : t → cpred)
 : (t → event α) → event β → tvar α → tvar β → Prop
 | e ⟨p₁,q₁,A₁⟩ cv av :=
@@ -120,7 +123,7 @@ po.delay Γ hS
 def H₁ : Γ ⊢ ∀∀ i, ◇(p i ⋀ w i) ⟶ ◇◻p' ⟶ ◇◻(p i ⋀ w i) :=
 po.stable Γ hS
 
-def H₂ : Γ ⊢ ∀∀ i, ◻(A i ⟶ A') :=
+def H₂ : Γ ⊢ ∀∀ i, ◻(p i ⟶ q i ⟶ A i ⟶ p' ⋀ q' ⋀ A') :=
 po.sim Γ hS
 
 def H₃ : Γ ⊢ ◻(p' ⋀ q' ⟶ ∃∃ i, w i) :=
@@ -148,11 +151,11 @@ begin [temporal]
       apply coincidence _ hq',
       { apply stable_and_of_stable_of_stable hp',
         revert H₉, monotonicity! p_and_elim_right _ _ _, }, },
-    have := H₅ i _ this,
-    { revert this,
-      have H₂ := temporal.fairness.splitting.H₂ i,
-      monotonicity!,
-      apply H₂  },
+    replace this := H₅ i _ this,
+    { have H₂ := temporal.fairness.splitting.H₂ i,
+      replace this := coincidence H₉ this,
+      henceforth! at this ⊢, eventually this ⊢,
+      casesm* _ ⋀ _, apply H₂ ; assumption  },
     { revert H₉, monotonicity!, lifted_pred,
       show _, { intros, assumption } },
     { revert H₇, monotonicity!, lifted_pred }, },

@@ -182,10 +182,11 @@ meta def save_info (p : pos) : temporal unit :=
 do gs  ← get_goals,
    fmt ← mmap temp_to_fmt gs,
    set_goals gs,
+   let header := if gs.length > 1 then format!"{gs.length} goals\n" else "",
    tactic.save_info_thunk p (λ _,
      if fmt.empty
        then "no goals"
-       else format.join (fmt.intersperse $ line ++ line))
+       else header ++ format.join (fmt.intersperse $ line ++ line))
 
 meta def step {α : Type} (c : temporal α) : temporal unit :=
 c >>[tactic] cleanup

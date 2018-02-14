@@ -15,6 +15,7 @@ parameters {α : Type u} {β : Type u₀} {γ : Type u₁ }
 parameters (p : pred' (γ×α)) (q : pred' (γ×β))
 parameters (A : act (γ×α)) (C : act (γ×β))
 parameters (J : pred' (γ×α×β))
+parameters (Jₐ : pred' (γ×α))
 
 variables (x : tvar α) (y : tvar β) (z : tvar γ)
 
@@ -31,6 +32,7 @@ parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o',
   (o,w,v) ⊨ J →
+  (o,w) ⊨ Jₐ →
   C (o,v) (o',v') →
   ∃ w', A (o,w) (o',w') ∧
         (o',w',v') ⊨ J
@@ -67,19 +69,23 @@ begin
   apply_epsilon_spec,
 end
 
+lemma abs_J_inv_in_w
+: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(Jₐ ! ⦃o,w⦄) :=
+sorry
+
 include H SIM
 lemma J_inv_in_w
 : Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃o,w,v⦄) :=
 begin [temporal]
   introv Hw,
+  have hJₐ := temporal.simulation.abs_J_inv_in_w _ Hw,
   apply induct _ _ _ _,
   { replace Hw := Hw.right,
     simp, rw Hw,
     replace H := H.right,
-    henceforth at H ⊢ , revert H,
-    explicit
-    { repeat { unfold_coes <|> simp [Wf,Wf_f] },
-      intros, apply_epsilon_spec,  } },
+    henceforth at hJₐ H ⊢ , revert H,
+    explicit' [Wf,Wf_f]
+    { intros, apply_epsilon_spec, } },
   { replace Hw := Hw.left,
     rw [Hw,Wx₀,Wx₀_f],
     replace H := H.left,
@@ -92,17 +98,15 @@ lemma C_imp_A_in_w
 : Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(⟦ o,v | C ⟧ ⟶ ⟦ o,w | A ⟧) :=
 begin [temporal]
   intros w Hw,
-  have := J_inv_in_w p q A C J SIM₀ @SIM v o Γ H,
-  replace this := this w Hw,
+  have := temporal.simulation.J_inv_in_w _ Hw,
+  have hJₐ := temporal.simulation.abs_J_inv_in_w _ Hw,
   simp [action_eq],
   rw [Hw.right],
   clear H Hw,
-  henceforth at ⊢ this,
+  henceforth at ⊢ this hJₐ,
   revert this,
-  explicit {
-    repeat { simp [Wf,Wf_f] <|> unfold_coes },
-    intros,
-    apply_epsilon_spec, },
+  explicit' [Wf,Wf_f]
+  { intros, apply_epsilon_spec, },
 end
 
 lemma simulation
@@ -125,7 +129,7 @@ lemma simulation'
 begin [temporal]
   rw p_exists_p_imp,
   intros x h,
-  apply simulation p q A C J SIM₀ @SIM _ _ _ h,
+  apply simulation p q A C J _ SIM₀ @SIM _ _ _ h,
 end
 
 end
@@ -165,7 +169,7 @@ begin
   let p' : pred' (unit × plift α) := p ! prj,
   have _inst : inhabited (plift α) := ⟨ plift.up (default α) ⟩,
   let J' : pred' (unit × plift α × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
-  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' _inst _ _ o o Γ _,
+  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ o o Γ _,
   begin [temporal]
     revert this,
     let f : tvar (plift α) → tvar α := λ v, ⟨plift.down⟩ ! v,
@@ -181,7 +185,7 @@ begin
     apply exists_imp_exists' plift.up,
     introv h, split, simp [p',h],
     simp [J'], apply ew_str H₀ _ h, },
-  { introv hJ hC, simp [J'] at hJ,
+  { introv hJ hJ' hC, simp [J'] at hJ,
     have := FIS (w.down) hJ, revert this,
     apply exists_imp_exists' plift.up,
     introv hA, simp [A'], split,

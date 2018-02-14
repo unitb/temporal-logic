@@ -19,8 +19,8 @@ parameters [inhabited evt] [inhabited α]
 
 parameter init_FIS : ∃ s, s ⊨ p
 parameter init_INV : ∀ s, s ⊨ p → s ⊨ J
-
-parameter evt_FIS : ∀ e s, s ⊨ J → ∃ s', A e s s'
+parameter DLF : ∀ s, s ⊨ J → ∃ e, s ⊨ cs₀ e ∧ s ⊨ fs₀ e
+parameter evt_FIS : ∀ e s, s ⊨ J → s ⊨ cs₀ e → s ⊨ fs₀ e → ∃ s', A e s s'
 parameter evt_INV : ∀ e s s', A e s s' → s ⊨ J → s' ⊨ J
 
 def SPEC₀ (v : tvar α) : cpred :=
@@ -32,8 +32,10 @@ p ! pair.snd
 def q' : pred' (unit × unit) :=
 True
 
+open prod
 def A' (e : evt) : act (unit × α) :=
-A e on prod.snd
+λ σ σ',
+     (A e on snd) σ σ'
 
 def C (e : evt) : act (unit × unit) :=
 λ _ _, true
@@ -56,26 +58,36 @@ True
 abbreviation fs₁ (e : evt) : pred' (unit × unit) :=
 True
 section
-include init_FIS init_INV
+include init_FIS init_INV DLF
 lemma SIM₀' (v o : unit)
   (h : (o, v) ⊨ q')
 : (∃ (w : α), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
 by { simp [q',p'] at *,
      apply exists_imp_exists _ init_FIS,
-     intros, split, auto,
-     apply init_INV, assumption }
+     intros, split, auto, auto }
 end
 open function
 section
-include evt_FIS evt_INV
+include evt_FIS evt_INV DLF
 lemma SIM' (w : α) (v o v' o' : unit) (e : evt)
   (hJ : (o, w, v) ⊨ J')
+  (_ : true)
+  (_ : true)
+  (_ : true)
   (hC : C e (o, v) (o', v'))
-: (∃ (w' : α), A' e (o, w) (o', w') ∧ (o', w', v') ⊨ J') :=
+: (∃ (w' : α),
+        (o,w) ⊨ cs₀' e ∧
+        (o,w) ⊨ fs₀' e ∧
+        A' e (o, w) (o', w') ∧
+        (o', w', v') ⊨ J') :=
 begin
-  simp [comp,A',on_fun] at *,
-  apply exists_imp_exists _ (evt_FIS e w hJ),
-  tauto,
+  -- simp [comp,A',on_fun] at *,
+  -- casesm* [_ ∧ _, Exists _, unit],
+  -- constructor_matching* [_ ∧ _],
+  -- apply exists_imp_exists _ (evt_FIS e w _),
+  -- intros, split, admit, assumption,
+  -- tauto,
+  admit,
 end
 
 end
@@ -87,15 +99,11 @@ def o : tvar unit := ↑()
 --          ⟨cs₁ e,fs₁ e,C' e⟩
 --          ⟨cs₀ e,fs₀ e,A' e⟩ ⦃o,c⦄ ⦃o,a⦄)
 
-
 def SPEC₀.saf' (v : tvar α) (sch : tvar evt) : cpred :=
-p' ! ⦃o,v⦄ ⋀
-◻(∃∃ i, sch ≃ ↑i ⋀ ⟦ o,v | A' i ⟧)
+spec_saf_spec p' cs₀' fs₀' A' ⦃o,v⦄ sch
 
 def SPEC₁ (v : tvar unit) : cpred :=
-q' ! ⦃o,v⦄ ⋀
-◻(∃∃ i, ⟦ o,v | C i ⟧) ⋀
-∀∀ i, sched (cs₁ i ! ⦃o,v⦄) (fs₁ i ! ⦃o,v⦄) ⟦ o,v | C i ⟧
+spec q' cs₁ fs₁ C ⦃o,v⦄
 
 lemma Hpo'
  : ∀ c a e sch, one_to_one_po' (SPEC₁ c ⋀ SPEC₀.saf' a sch ⋀ ◻(J' ! ⦃o,a,c⦄))
@@ -111,16 +119,17 @@ begin
     simp [C',SPEC₁,sched,q',action_on _ _ prod.snd,SPEC₀.saf'],
     intros _ _ _ h _, revert h,
     monotonicity!,
-    simp, intro,
+    simp, intros,
     explicit' [C,one_to_one.C',A']
-    { cc, },
+    { subst e, subst x, tauto },
   end
 end
 
-include J init_INV init_FIS evt_INV evt_FIS Hpo'
+include J init_INV init_FIS evt_INV evt_FIS Hpo' DLF
 lemma feasibility [schedulable evt]
 : ⊩ (∃∃ v, SPEC₀ v) :=
 begin [temporal]
+  have := temporal.feasibility.SIM',
   have :=  @one_to_one.refinement α unit unit evt
      temporal.feasibility.p' temporal.feasibility.q'
        temporal.feasibility.A'
@@ -129,7 +138,7 @@ begin [temporal]
        temporal.feasibility.fs₀'
        temporal.feasibility.cs₁
        temporal.feasibility.fs₁
-       temporal.feasibility.J' _ _
+       temporal.feasibility.J' True _ _
        temporal.feasibility.SIM₀'
        temporal.feasibility.SIM'
        o _ _ Γ _,
