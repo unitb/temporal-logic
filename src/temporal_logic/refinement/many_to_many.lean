@@ -66,6 +66,14 @@ parameters [inh_α : inhabited α]
 
 parameter Hc2a : ∀ ce : cevt, ∃ ae : aevt, ref ae ce
 
+parameter init_Jₐ : ∀ w o, (o,w) ⊨ p → (o,w) ⊨ Jₐ
+parameter evt_Jₐ  : ∀ w o w' o' e,
+                          (o,w) ⊨ Jₐ →
+                          (o,w) ⊨ cs₀ e →
+                          (o,w) ⊨ fs₀ e →
+                          A e (o,w) (o',w') →
+                          (o',w') ⊨ Jₐ
+
 parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o' ce,
@@ -267,36 +275,51 @@ section Simulation_POs
 abbreviation ref' : tvar (aevt → cevt → Prop) :=
 ref
 
--- variable Hcorrect_sched : Γ ⊢ ◻(ref' sch_a sch_c)
+include valid_witness init_Jₐ evt_Jₐ
+include SIM₀ SIM H
 
-include SIM₀ SIM H valid_witness
-
-lemma abs_J_inv_in_w
-: Γ ⊢ ◻(Jₐ ! ⦃o,w⦄) :=
-sorry
-
-lemma J_inv_in_w
-: Γ ⊢ ◻(J ! ⦃o,w,v⦄) :=
+lemma J_inv_in_w'
+: Γ ⊢ ◻(J ! ⦃o,w,v⦄ ⋀ Jₐ ! ⦃o,w⦄) :=
 begin [temporal]
-  have := temporal.many_to_many.abs_J_inv_in_w sch_a H w valid_witness,
   simp [Wtn,SPEC₂] at valid_witness H,
   cases valid_witness with h₀ h₀,
   casesm* _ ⋀ _,
   apply induct _ _ _ _,
   { select H₀ : ◻p_exists _,
-    henceforth! at h₀_1 H₀ ⊢ this,
+    henceforth! at h₀_1 H₀ ⊢,
     explicit'
-    { intro h,
+    { intros h hJₐ,
       casesm* [_ ∧ _,Exists _],
-      subst H₀_w, subst w',
-      apply_epsilon_spec, simp,
-      apply SIM ; auto, } },
+      have : (o', w', v') ⊨ J ∧
+             (o,w) ⊨ cs₀ sch_a' ∧ (o,w) ⊨ fs₀ sch_a' ∧
+             A sch_a' (o, w) (o', w'),
+      { subst H₀_w, subst w', subst sch_a',
+        apply_epsilon_spec,
+        simp,
+        apply SIM ; auto },
+      split, tauto,
+      casesm* _ ∧ _,
+      apply evt_Jₐ ; apply hJₐ <|> auto }, },
   { select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select Hq : q ! _,
-    clear_except Hw SIM₀ Hq,
+    clear_except Hw SIM₀ Hq init_Jₐ,
     explicit'
     { cases Hw, subst w, apply_epsilon_spec,
       simp, tauto, } },
+end
+
+lemma J_inv_in_w
+: Γ ⊢ ◻(J ! ⦃o,w,v⦄) :=
+begin [temporal]
+  cases temporal.many_to_many.J_inv_in_w' _ H _ valid_witness,
+  assumption
+end
+
+lemma abs_J_inv_in_w
+: Γ ⊢ ◻(Jₐ ! ⦃o,w⦄) :=
+begin [temporal]
+  cases temporal.many_to_many.J_inv_in_w' _ H _ valid_witness,
+  assumption
 end
 
 lemma witness_imp_SPEC₀_saf
@@ -444,7 +467,7 @@ end
 
 end Simulation_POs
 
-include H SIM₀ SIM Hpo
+include H SIM₀ SIM Hpo init_Jₐ evt_Jₐ
 
 lemma sched_ref (i : aevt) -- (w : tvar (aevt × α))
  (Hw : Γ ⊢ Wtn ⦃sch_a,w⦄)
@@ -462,8 +485,9 @@ begin [temporal]
   simp only, intros H₀ H₁,
   replace h := h ce Hce H₀ H₁,
   revert h,
-  monotonicity!,
-  lifted_pred, admit,
+  monotonicity!, clear Hpo,
+  explicit'
+  { intros, tauto },
 end
 
 lemma many_to_many
@@ -486,7 +510,7 @@ begin [temporal]
     { intro, cases Hw,
       subst w, apply_epsilon_spec,
       simp, auto, }, },
-  { clear_except SIM SIM₀ Hw H,
+  { clear_except SIM SIM₀ Hw H init_Jₐ evt_Jₐ,
     have hJ := temporal.many_to_many.J_inv_in_w _ H _ Hw,
     have hJₐ := temporal.many_to_many.abs_J_inv_in_w _ H _ Hw,
     simp [Wtn,SPEC₂] at H Hw,
@@ -508,7 +532,7 @@ end SPEC₂
 end conc_sch
 
 section refinement_SPEC₂
-include SIM₀ SIM wit Hpo inh_aevt inh_α
+include SIM₀ SIM wit Hpo inh_aevt inh_α init_Jₐ evt_Jₐ
 parameters cs₁ fs₁ cs₀ fs₀
 
 -- variable {Γ : cpred}
@@ -535,7 +559,7 @@ sch_intro _ _ _ _ _ _
 
 end obligations
 open function
-include SIM₀ SIM inh_cevt inh_aevt inh_α
+include SIM₀ SIM inh_cevt inh_aevt inh_α init_Jₐ evt_Jₐ
 lemma refinement {o : tvar γ} [schedulable cevt]
   (h :   ∀ (v : tvar β) (e : aevt) (w : tvar α) (sch_a : tvar aevt),
     many_to_many_po' (subtype (ref e)) (SPEC₁ v o ⋀ SPEC₀.saf' w o sch_a ⋀ ◻(J ! ⦃o,w,v⦄)) (wit e)
