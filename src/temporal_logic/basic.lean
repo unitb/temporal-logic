@@ -22,7 +22,7 @@ end tactic.interactive
 
 namespace temporal
 
-open predicate
+open predicate nat
 
 universe variables u u₀ u₁ u₂
 
@@ -129,12 +129,12 @@ open stream
 @[strengthening]
 lemma next_entails_eventually (p : cpred)
 : ⊙p ⟹ ◇p :=
-sorry
+by { lifted_pred [eventually], intro, existsi 1, assumption }
 
 @[strengthening]
 lemma henceforth_entails_next (p : cpred)
 : ◻p ⟹ ⊙p :=
-sorry
+by { lifted_pred [eventually], intro h, apply h 1 }
 
 @[strengthening]
 lemma henceforth_str (p : cpred) :
@@ -200,9 +200,6 @@ begin
   apply h
 end
 
-lemma henceforth_next_intro (p : cpred)
-: ◻p = ◻(p ⋀ ⊙p) := sorry
-
 @[simp]
 lemma eventually_eventually (p : cpred) : ◇◇ p = ◇ p :=
 begin
@@ -233,6 +230,13 @@ begin
     simp [drop_drop],
     apply h }
 end
+
+lemma henceforth_next_intro (p : cpred)
+: ◻p = ◻(p ⋀ ⊙p) :=
+by { lifted_pred, split ; intros h i,
+     { split, apply h i, specialize h (succ i),
+       simp [add_succ] at h, simp [next,h], },
+     { apply (h i).left }}
 
 /- True / False -/
 

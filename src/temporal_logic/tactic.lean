@@ -458,7 +458,8 @@ open list
 lemma judgement_congr {Γ p q : cpred}
   (h : Γ ⊢ p ≡ q)
 : Γ ⊢ p = Γ ⊢ q :=
-sorry
+by { apply iff.to_eq, split ; intro h' ;
+     lifted_pred using h h' ; cc }
 
 def with_asms {β} (Γ : pred' β) : Π (xs : list (pred' β)) (x : pred' β), Prop
  | [] x := Γ ⊢ x

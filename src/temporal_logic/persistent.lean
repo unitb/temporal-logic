@@ -100,13 +100,15 @@ def with_h_asms (Γ : cpred) : Π (xs : list (cpred)) (x : cpred), Prop
 lemma indirect_judgement (h p : pred' β)
   (H : ∀ Γ, Γ ⊢ h → Γ ⊢ p)
 : h ⊢ p :=
-sorry
+by { apply H, lifted_pred keep, assumption }
 
 lemma judgement_trans (p q r : pred' β)
   (h₀ : p ⊢ q)
   (h₁ : q ⊢ r)
 : p ⊢ r :=
-sorry
+by { lifted_pred keep,
+     apply h₁.apply,
+     apply h₀.apply _ a }
 
 lemma p_imp_postpone (Γ p q : cpred)
   [persistent Γ]
@@ -122,7 +124,9 @@ lemma persistent_to_henceforth {p q : cpred}
   [persistent p]
   (h : p ⊢ q)
 : p ⊢ ◻ q :=
-sorry
+by { rw ← is_persistent p,
+     lifted_pred keep, intro i,
+     apply h.apply _ (a i), }
 
 lemma henceforth_deduction {Γ p q : cpred}
   (h : Γ ⊢ ◻(p ⟶ q))
