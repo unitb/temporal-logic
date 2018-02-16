@@ -28,6 +28,12 @@ q ! ⦃ o,v ⦄ ⋀
 ◻⟦ o,v | C ⟧
 
 parameters [inhabited α]
+parameter init_Jₐ : ∀ w o, (o,w) ⊨ p → (o,w) ⊨ Jₐ
+parameter evt_Jₐ  : ∀ w o w' o',
+                          (o,w) ⊨ Jₐ →
+                          A (o,w) (o',w') →
+                          (o',w') ⊨ Jₐ
+
 parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o',
@@ -60,55 +66,74 @@ w ≃ Wx₀ ⋀ ◻(⊙w ≃ Wf w)
 
 include SIM₀
 
+variables w : tvar α
+variables Hw : Γ ⊢ Wtn w
+include Hw
+
 lemma init_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ q!⦃o,v⦄ ⟶ p!⦃o,w⦄ :=
-begin
-  lifted_pred [nat.sub_self,Wtn] ,
-  introv Hq, intros, simp [Hq,Wx₀,Wx₀_f],
-  unfold_coes, simp [Wx₀,Wx₀_f],
-  apply_epsilon_spec,
+: Γ ⊢ q!⦃o,v⦄ ⟶ p!⦃o,w⦄ :=
+begin [temporal]
+  cases Hw,
+  explicit' [Wx₀,Wx₀_f]
+  { introv Hq, subst w,
+    apply_epsilon_spec }
+end
+
+include H SIM init_Jₐ evt_Jₐ
+lemma J_inv_in_w'
+: Γ ⊢ ◻(J ! ⦃o,w,v⦄ ⋀ Jₐ ! ⦃o,w⦄) :=
+begin [temporal]
+  simp [Wtn,SPEC₁] at Hw H,
+  cases Hw with h₀ h₀,
+  casesm* _ ⋀ _,
+  apply induct _ _ _ _,
+  { select H₀ : ◻action _ _,
+    henceforth! at h₀_1 H₀ ⊢,
+    explicit' [Wf,Wf_f]
+    { intros h hJₐ,
+      casesm* [_ ∧ _,Exists _],
+      have : (o', w', v') ⊨ J ∧
+             A (o, w) (o', w'),
+      { subst w',
+        apply_epsilon_spec, },
+      split, tauto,
+      casesm* _ ∧ _,
+      apply evt_Jₐ ; apply hJₐ <|> auto }, },
+  { select Hw : _ ≃ temporal.simulation.Wx₀,
+    select Hq : q ! _,
+    clear_except Hw SIM₀ Hq init_Jₐ,
+    explicit' [Wtn,Wx₀,Wx₀_f]
+    { subst w, apply_epsilon_spec, } },
+end
+
+lemma J_inv_in_w
+: Γ ⊢ ◻(J ! ⦃o,w,v⦄) :=
+begin [temporal]
+  cases temporal.simulation.J_inv_in_w' _ Hw,
+  assumption
 end
 
 lemma abs_J_inv_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(Jₐ ! ⦃o,w⦄) :=
-sorry
-
-include H SIM
-lemma J_inv_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(J ! ⦃o,w,v⦄) :=
+: Γ ⊢ ◻(Jₐ ! ⦃o,w⦄) :=
 begin [temporal]
-  introv Hw,
-  have hJₐ := temporal.simulation.abs_J_inv_in_w _ Hw,
-  apply induct _ _ _ _,
-  { replace Hw := Hw.right,
-    simp, rw Hw,
-    replace H := H.right,
-    henceforth at hJₐ H ⊢ , revert H,
-    explicit' [Wf,Wf_f]
-    { intros, apply_epsilon_spec, } },
-  { replace Hw := Hw.left,
-    rw [Hw,Wx₀,Wx₀_f],
-    replace H := H.left,
-    explicit {
-    { unfold_coes, simp at ⊢ H,
-      apply_epsilon_spec, } } },
+  cases temporal.simulation.J_inv_in_w' _ Hw,
+  assumption
 end
 
 lemma C_imp_A_in_w
-: Γ ⊢ ∀∀ w, Wtn w ⟶ ◻(⟦ o,v | C ⟧ ⟶ ⟦ o,w | A ⟧) :=
+: Γ ⊢ ◻(⟦ o,v | C ⟧ ⟶ ⟦ o,w | A ⟧) :=
 begin [temporal]
-  intros w Hw,
   have := temporal.simulation.J_inv_in_w _ Hw,
   have hJₐ := temporal.simulation.abs_J_inv_in_w _ Hw,
   simp [action_eq],
   rw [Hw.right],
   clear H Hw,
-  henceforth at ⊢ this hJₐ,
+  henceforth! at ⊢ this hJₐ,
   revert this,
   explicit' [Wf,Wf_f]
   { intros, apply_epsilon_spec, },
 end
-
+omit Hw
 lemma simulation
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
@@ -118,18 +143,19 @@ begin [temporal]
   apply ctx_p_and_p_imp_p_and',
   { apply temporal.simulation.init_in_w _ Hw },
   { type_check_result "foo",
-    replace Hw := temporal.simulation.C_imp_A_in_w _ Hw,
+    replace Hw := temporal.simulation.C_imp_A_in_w _ Hw ,
     monotonicity!,
     apply Hw, },
 end
 
+-- omit  init_Jₐ evt_Jₐ
 omit H
 lemma simulation'
 : (∃∃ c, SPEC₁ c o) ⟹ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   rw p_exists_p_imp,
   intros x h,
-  apply simulation p q A C J _ SIM₀ @SIM _ _ _ h,
+  apply simulation p q A C J Jₐ init_Jₐ evt_Jₐ SIM₀ @SIM _ _ _ h ,
 end
 
 end
@@ -169,7 +195,9 @@ begin
   let p' : pred' (unit × plift α) := p ! prj,
   have _inst : inhabited (plift α) := ⟨ plift.up (default α) ⟩,
   let J' : pred' (unit × plift α × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
-  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ o o Γ _,
+  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ _ _ o o Γ _,
+  -- ; try { auto },
+  -- have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ o o Γ _,
   begin [temporal]
     revert this,
     let f : tvar (plift α) → tvar α := λ v, ⟨plift.down⟩ ! v,
@@ -180,6 +208,8 @@ begin
     monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.snd_mk'],
     refl,
   end,
+  { simp },
+  { intros, simp, },
   { intros,
     revert FIS₀,
     apply exists_imp_exists' plift.up,

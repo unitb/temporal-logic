@@ -139,6 +139,7 @@ begin [temporal]
        temporal.feasibility.cs₁
        temporal.feasibility.fs₁
        temporal.feasibility.J' True _ _
+       _ _
        temporal.feasibility.SIM₀'
        temporal.feasibility.SIM'
        o _ _ Γ _,
@@ -150,6 +151,8 @@ begin [temporal]
       tauto, },
     { simp [A',action_on' _ _ prod.snd] at *,
       assumption, }, },
+  { intros, simp, },
+  { intros, simp, },
   apply temporal.feasibility.Hpo' ,
   { existsi o,
     simp [one_to_one.SPEC₁,q',C,C',sched], }

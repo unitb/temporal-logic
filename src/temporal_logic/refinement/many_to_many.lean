@@ -93,8 +93,6 @@ section obligations
 parameters (v : tvar β) (o : tvar γ)
 parameters (Γ : cpred)
 
--- parameter HJₐ : Γ ⊢ ∀∀ w, SPEC₀ w o ⟶ ◻(Jₐ ! ⦃o,w⦄)
-
 parameters β γ
 variable Hpo : ∀ (e : aevt) (w : tvar α) (sch : tvar aevt),
   many_to_many_po'
