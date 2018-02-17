@@ -406,20 +406,18 @@ end
 -- include Hinj
 /-- TODO: Pull out lemmas -/
 lemma sched_queue_safety (q₀ : ℕ) (e : evt)
-  (H : Γ ⊢ ◻◇(rank e |+| (rank e |-| cur) ≃ ↑q₀))
-: Γ ⊢ ◇◻(rank e |+| (rank e |-| cur) ≃ ↑q₀) ⋁
-    ◻◇(rank e |+| (rank e |-| cur) ≺≺ ↑q₀ ⋁ select ≃ ↑e) :=
+: Γ ⊢ ◻(rank e |+| (rank e |-| cur) ≃ ↑q₀ ⟶
+    ◻(rank e |+| (rank e |-| cur) ≃ ↑q₀) ⋁
+    ◇(rank e |+| (rank e |-| cur) ≺≺ ↑q₀ ⋁ select ≃ ↑e)) :=
 begin [temporal]
-  rw [p_or_comm,← p_not_p_imp],
-  intros H₁, simp [p_not_p_or,p_not_p_and] at H₁,
   have hJ := temporal.scheduling.q_injective,
   have Hinc := temporal.scheduling.cur_lt_cur',
   have p_not_empty := temporal.scheduling.valid_indices_ne_empty,
   have p'_not_empty := henceforth_next _ _ p_not_empty,
   cases Hq with Hq Hq',
-  eventually H₁,
-  henceforth at H,
-  eventually H ⊢,
+  henceforth!, intro H,
+  rw [p_or_comm,← p_not_p_imp],
+  intros H₁, simp [p_not_p_or,p_not_p_and] at H₁,
   t_induction,
   { assumption },
   { henceforth!, intro Hprev,
@@ -509,8 +507,8 @@ begin [temporal]
   { intro h, apply this,
     rw [← next_eventually_comm], apply henceforth_next _ _ h, },
   apply inf_often_induction' (temporal.scheduling.rank e |+| (temporal.scheduling.rank e |-| cur)) ; intro q₀,
-  { intro h, rw temporal.scheduling.subsumes_requested e,
-    apply temporal.scheduling.sched_queue_safety _ _ h, },
+  { rw temporal.scheduling.subsumes_requested e,
+    apply temporal.scheduling.sched_queue_safety q₀ e, },
   { apply temporal.scheduling.sched_queue_liveness }
 end
 

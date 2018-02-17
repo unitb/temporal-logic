@@ -1061,9 +1061,9 @@ meta def break_disj (Γ p p' a b : expr) (ids : list name) : temporal unit :=
 do let h₀ : name := (ids.nth 0).get_or_else `a,
    let h₁ : name := (ids.nth 1).get_or_else `a,
    g ← target,
-   note `h none p,
+   note `h none p',
    revert [`h],
-   when p'.is_local_constant (tactic.clear p'),
+   when p.is_local_constant (tactic.clear p),
    apply ``(@p_or_entails_of_entails' _  %%Γ %%a %%b _ _)
    ; [ intros [h₀] , intros [h₁] ],
    tactic.swap
@@ -1107,10 +1107,10 @@ do p' ← to_expr e.2,
    (do match_pexpr ``(%%a ⋁ %%b) q,
        break_disj Γ p p a b ids) <|>
    (do match_pexpr ``(◇(%%a ⋁ %%b)) q,
-       p' ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (eventually_or %%a %%b)) %%p),
+       p₁ ← to_expr ``(eq.mp (congr_arg (judgement %%Γ) (eventually_or %%a %%b)) %%p),
        a ← to_expr ``(◇%%a),
        b ← to_expr ``(◇%%b),
-       break_disj Γ p p' a b ids) <|>
+       break_disj Γ p' p₁ a b ids) <|>
    (do match_pexpr ``(p_exists %%b) q,
        let h₀ : name := (ids.nth 0).get_or_else `_,
        let h₁ : name := (ids.nth 1).get_or_else `_,
@@ -1122,6 +1122,13 @@ do p' ← to_expr e.2,
 
 private meta def cases_core (p : expr) : tactic unit :=
 () <$ cases (none,to_pexpr p) []
+
+meta def by_cases : parse cases_arg_p → tactic unit
+| (n, q) := do
+  `(%%Γ ⊢ _) ← target,
+  p ← t_to_expr q,
+  let ids : list _ := n.to_monad,
+  cases (none,``(predicate.em %%p %%Γ)) $ ids ++ ids
 
 private meta def find_matching_hyp (ps : list pattern) : tactic expr :=
 any_hyp $ λ h, do
@@ -1155,10 +1162,6 @@ cases_matching rec ps
 -- : temporal unit :=
 -- do let patts := rcases_parse.invert $ ids.get_or_else [default _],
 --    _
-
-meta def by_cases (q : parse texpr) (n : parse (tk "with" *> ident)?): tactic unit :=
-let h := n.get_or_else `h in
-cases (none, ``(predicate.em %%q)) [h,h]
 
 meta def assume_negation (n : parse (tk "with" *> ident)?) : temporal unit :=
 do `(_ ⊢ %%t) ← target,

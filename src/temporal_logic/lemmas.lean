@@ -54,7 +54,12 @@ end
 
 lemma entails_henceforth_or {p q : cpred}
 : ◻p ⋁ ◻q ⟹ ◻(p ⋁ q) :=
-sorry
+begin [temporal]
+  intros h, cases h with h h
+  ; henceforth at ⊢ h
+  ; [ left , right ]
+  ; exact h
+end
 
 /- end distributivity -/
 
@@ -337,13 +342,24 @@ private meta def event_to_event : name ⊕ pexpr → tactic expr
  | (sum.inl n) := resolve_name n >>= to_expr
  | (sum.inr e) := to_expr e
 
-meta def interactive.event_ordering (e₀ e₁ : parse event)
+meta def interactive.event_ordering (aggr : parse $ optional $ tk "!") (e₀ e₁ : parse event)
   (ids : parse with_ident_list) : temporal unit :=
 do e₀ ← event_to_event e₀, e₁ ← event_to_event e₁,
    h ← to_expr ``(event_ordering %%e₀ %%e₁) >>= note `h none,
    when e₀.is_local_constant $ tactic.clear e₀,
    when e₁.is_local_constant $ tactic.clear e₁,
-   temporal.interactive.cases (none,to_pexpr h) ids,
+   if aggr.is_some then do
+     n₀ ← mk_fresh_name,
+     n₁ ← mk_fresh_name,
+     temporal.interactive.cases (none,to_pexpr h) [n₀,n₁],
+     temporal.interactive.eventually n₁ ff <|> fail "here",
+     e₀ ← get_local n₁, temporal.interactive.cases (none,to_pexpr e₀) ids,
+     cleanup,
+     tactic.swap,
+     temporal.interactive.eventually n₀ ff <|> fail "there",
+     e₀ ← get_local n₀, temporal.interactive.cases (none,to_pexpr e₀) ids,
+     tactic.swap
+   else temporal.interactive.cases (none,to_pexpr h) ids,
    return ()
 
 end
@@ -370,6 +386,7 @@ begin [temporal]
   split ; assumption
 end
 
+@[simp]
 lemma eventually_inf_often (p : cpred)
 : ◇◻◇p = ◻◇p :=
 mutual_entails
@@ -576,39 +593,34 @@ parameters [has_well_founded β']
 def le (x y : β') := x << y ∨ x = y
 
 lemma inf_often_induction'
-  (S₀ : Γ ⊢ ∀∀ v : β', ◻◇(V ≃ v) ⟶ ◇◻(V ≃ v) ⋁ ◻◇(V ≺≺ v ⋁ q))
+  (S₀ : Γ ⊢ ∀∀ v : β', ◻( V ≃ v ⟶ ◻(V ≃ v) ⋁ ◇(V ≺≺ v ⋁ q)))
   (P₁ : Γ ⊢ ∀∀ v : β', (p ⋀ V ≃ v) ~> (V ≺≺ v ⋁ q))
 : Γ ⊢ ◻◇p ⟶ ◻◇q :=
 begin [temporal]
-  have Hex : ∀∀ (v : β'), (p ⋀ V ≃ v) ~> (q ⋁ ◻-p),
+  intros Hp,
+  have Hex : ∀∀ (v : β'), V ≃ v ~> q,
   { intro v,
     wf_induction v with v,
     have IH' := temporal.leads_to_disj_rng ih_1, clear ih_1,
-    rw_using : (∃∃ (i : β'), ↑(i << v) ⋀ (p ⋀ V ≃ i))
-             = (V ≺≺ v ⋀ p) at IH',
+    rw_using : (∃∃ (i : β'), ↑(i << v) ⋀ V ≃ i)
+             = V ≺≺ v at IH',
     { ext τ,
-      simp [flip,function.comp],
-      split ; simp ; intros, rw a_2, split ; assumption,
-      split, repeat { split, assumption }, refl  },
-    have S₂ : ∀∀ (v : β'), ◻◇(V ≺≺ v) ⟶ ◇◻(V ≺≺ v) ⋁ ◻◇(V ≺≺ v ⋁ q),
-    { admit },
-    have S₁ : ∀∀ (v : β'), (V ≃ v)  ~> ◻(V ≃ v) ⋁ ◻◇(V ≺≺ v ⋁ q),
-    { admit }, clear S₀,
-    have H₁ : (p ⋀ V ≃ v) ~> (V ≺≺ v ⋀ p) ⋁ q, admit,
-    have H₃ := temporal.leads_to_cancellation H₁ IH',
-    admit },
-  have H := @temporal.leads_to_disj _ (λ v : β', (p ⋀ V ≃ v)) (q ⋁ ◻-p) _ Hex,
-  dsimp [tl_leads_to] at H,
-  rw_using : (∃∃ (v : β'), p ⋀ (V ≃ v)) = p at H,
-  { ext τ, simp [function.comp,exists_one_point_right] },
-  rw [p_or_comm] at H,
-  intros h,
-  have H₁ := inf_often_of_leads_to H h,
-  rw [inf_often_p_or] at H₁,
-  cases H₁ with H₁ H₁,
-  { exfalso, revert h,
-    simp, apply H₁, },
-  { apply H₁ },
+      simp [flip,function.comp,p_exists], },
+    have S₁ : ∀∀ v : β', V ≃ v ~> V ≺≺ v ⋁ q,
+    { intro, henceforth!, intros Hv,
+      replace S₀ := S₀ _ Hv,
+      cases S₀ with S₀ S₀,
+      { have H := coincidence' S₀ Hp,
+        rw p_and_comm at H,
+        henceforth at H, eventually H,
+        apply P₁ _ H },
+      { apply S₀, } },
+    have H₃ := temporal.leads_to_cancellation (S₁ v) IH',
+    exact cast (by simp) H₃ },
+  replace Hex := temporal.leads_to_disj Hex,
+  rw_using : (∃∃ (v : β'), (V ≃ v)) = True at Hex,
+  { lifted_pred, existsi σ ⊨ V, refl },
+  henceforth, apply Hex, simp,
 end
 
 end inf_often_induction'
