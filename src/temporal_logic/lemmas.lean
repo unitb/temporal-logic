@@ -625,64 +625,6 @@ end
 
 end inf_often_induction'
 
-section inf_often_induction
-
-parameters {β' : Type*}
-parameters {Γ : cpred} (V : tvar β') (p q : cpred)
-def V' := ⊙V
-def p' := ⊙p
-def q' := ⊙q
-parameters [has_well_founded β']
-parameters (h₀ : Γ ⊢ ◻◇p)
-parameters (h₁ : Γ ⊢ ◻(q' ⋁ V' ≺≺ V ⋁ (- p' ⋀ V' ≃ V)))
-
-def EQ (v : β') : cpred := V ≃ v
-def LT (v : β') : cpred := V ≺≺ v
-
-def ACT := q' ⋁ V' ≺≺ V ⋁ (- p' ⋀ V' ≃ V)
-
-include h₁
-include h₀
-
-lemma P : Γ ⊢ ∀∀ v, (p ⋀ EQ v)  ~>  (p ⋀ LT v ⋁ q) :=
-begin [temporal]
-  intros v, henceforth,
-  simp,
-  intros Hp Hv,
-  replace h₀ := p_impl_revert (henceforth_next (◇p) Γ) h₀,
-  rw next_eventually_comm at h₀,
-  have h₀ : ◇(ACT V p q ⋀ ⊙p ⋀ (EQ V v)),
-  { suffices : ◇(ACT V p q ⋀ ⊙p ⋀ EQ V v) ⋁ ◻EQ V v,
-    { cases this, assumption,
-      rw p_and_comm,
-      apply coincidence' a,
-      apply coincidence' h₁ h₀, },
-    revert Hv, strengthen_to ◻ _,
-    apply induct_evt' _ _ _,
-    clear Hp,
-    henceforth, admit },
-  revert h₀, clear h₀, intro h₀,
-  persistent without h₀,
-  eventually h₀, clear h₁,
-  rw [ACT] at h₀,
-  revert h₀, simp,
-  introv h₀ h₁ h₂,
-  strengthen_to ⊙_,
-  explicit τ
-  { simp [next,EQ,LT,comp,flip,q',p',V'] at *,
-    begin [smt] break_asms, end },
-end
-
-lemma inf_often_induction
-: Γ ⊢ ◻◇q :=
-begin [temporal]
-  have P := P V p q h₀ h₁,
-  revert h₀,
-  apply inf_often_of_leads_to,
-  apply temporal.induction V (p) (q) P,
-end
-end inf_often_induction
-
 attribute [irreducible] next
 section
 variables Γ : cpred
