@@ -103,6 +103,14 @@ begin
   { intro, trivial }
 end
 
+@[simp]
+lemma next_true : ⊙True = True :=
+by lifted_pred
+
+@[simp]
+lemma next_false : ⊙False = False :=
+by lifted_pred [next]
+
 instance true_persistent
 : persistent (True : cpred) :=
 by { constructor, simp, }

@@ -1,3 +1,5 @@
 
-import temporal_logic.lemmas
-import temporal_logic.refinement
+import .lemmas
+import .refinement
+import .instances
+import .feasibility
