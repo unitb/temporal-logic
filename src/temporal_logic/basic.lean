@@ -342,7 +342,7 @@ begin
   pointwise h with τ,
   specialize h τ, simp [henceforth] at ⊢ h,
   introv h₀ h₁,
-  auto,
+  solve_by_elim,
 end
 
 lemma inf_often_entails_inf_often {p q : cpred} (f : p ⟹ q)

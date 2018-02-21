@@ -80,7 +80,7 @@ by { repeat { simp [next,next'] <|> unfold_coes },
      intro,
      split, { introv h, subst cur', simp [h], },
      { intro, apply funext,
-       intro, subst cur', auto } }
+       intro, subst cur', solve_by_elim } }
 
 section
 parameter f
@@ -135,15 +135,15 @@ begin
   { existsi i, rw Hq',
     suffices : cmp i cur' = ordering.lt,
     { rw [this,next_p,if_neg,h] at *,
-      { existsi [rfl], xassumption,
-        left, auto, refl, },
+      { existsi [rfl], apply_assumption,
+        left, solve_by_elim, refl, },
       all_goals { apply not_le_of_gt h_1 }, },
     rw [cmp,cmp_using_eq_lt,Hcur'],
     apply lt_max_of_lt_left _ h_1, },
   { existsi cur', rw Hq',
     have : cmp cur' cur' = ordering.eq,
     { rw [cmp_eq_eq], },
-    rw and_iff_imp, intro, auto,
+    rw and_iff_imp, intro, solve_by_elim,
     rw [this,next_p], cc },
   by_cases h_cur : i ≤ cur',
   { existsi i - 1, rw Hq',
@@ -155,7 +155,7 @@ begin
       apply lt_of_lt_of_le _ h_cur,
       show i - 1 < i,
       { apply nat.sub_lt, assumption, norm_num }, },
-    rw and_iff_imp, intro, auto,
+    rw and_iff_imp, intro, solve_by_elim,
     rw [this,next_p,if_pos,nat.sub_add_cancel,h],
     assumption,
     rw ← add_le_to_le_sub,
@@ -164,8 +164,8 @@ begin
     have : cmp i cur' = ordering.gt,
     { rw [cmp,cmp_using_eq_gt],
       apply lt_of_not_ge h_cur },
-    rw and_iff_imp, intro, xassumption,
-    right, tauto, auto,
+    rw and_iff_imp, intro, apply_assumption,
+    right, tauto, solve_by_elim,
     rw [this,next_p,h] at *, }
 end
 
@@ -178,7 +178,7 @@ begin [temporal]
   cases Hq with Hq Hq',
   t_induction!,
   { explicit'
-    { cases_matching* _ ∧ _, subst p, auto, } },
+    { cases_matching* _ ∧ _, subst p, solve_by_elim, } },
   { henceforth at Hq',
     explicit'
     { simp_intros e, cases ih e with i h,
@@ -575,7 +575,7 @@ begin [temporal]
   existsi sch,
   simp  at ⊢ h,
   casesm* _ ⋀ _,
-  split!* ; try { auto },
+  split!* ; try { solve_by_elim },
   { select h' : ◻(p_exists _),
     select hJ : ◻(_ ∊ _),
     henceforth! at hJ h' ⊢,
@@ -594,7 +594,7 @@ begin [temporal]
     { explicit' [r]
       { apply eq.to_iff, ac_refl }, },
     rw [H₁,H₀] at a_1,
-    auto, }
+    solve_by_elim, }
 end
 
 end spec

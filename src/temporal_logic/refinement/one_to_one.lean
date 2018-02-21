@@ -187,7 +187,7 @@ include init_Jₐ
 lemma init_Jₐ' (w : α) (o : γ × evt)
   (h : (o, w) ⊨ p')
 : (o, w) ⊨ JJₐ :=
-by { cases o, simp [JJₐ,p'] at *, auto }
+by { cases o, simp [JJₐ,p'] at *, solve_by_elim }
 end
 
 section
@@ -249,7 +249,7 @@ begin [temporal]
       subst w', subst h'_w,
       apply_epsilon_spec,
       have : (∃ (w' : α), (o, w) ⊨ cs₀ sch ∧
-      (o, w) ⊨ fs₀ sch ∧ A sch (o, w) (o', w') ∧ (o', w', v') ⊨ J), auto,
+      (o, w) ⊨ fs₀ sch ∧ A sch (o, w) (o', w') ∧ (o', w', v') ⊨ J), solve_by_elim,
       cases this, tauto, } },
 end
 
@@ -281,7 +281,7 @@ begin [temporal]
   { revert H',  persistent,
     intro, casesm* _ ⋀ _, split* ; try { assumption },
     apply temporal.one_to_one.SPEC₂_imp_SPEC₁ _ Γ _,
-    auto, casesm* _ ⋀ _, auto, },
+    solve_by_elim, casesm* _ ⋀ _, solve_by_elim, },
   clear Hpo,
   let J' := temporal.one_to_one.J',
   have init_Jₐ' := temporal.one_to_one.init_Jₐ', clear init_Jₐ,
@@ -333,8 +333,8 @@ begin
     simp, intros h₀ h₁ h₂,
     split*,
     { apply temporal.one_to_one.SPEC₂_imp_SPEC₁ Hpo _ h₀, },
-    { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; auto, },
-    { auto }
+    { apply temporal.one_to_one.witness_imp_SPEC₀_saf ; solve_by_elim, },
+    { solve_by_elim }
   end,
   constructor,
   iterate 3
@@ -372,7 +372,7 @@ begin [temporal]
   simp [J'] at hJ,
   have Hpo' := temporal.one_to_one.Hpo' Hpo w i,
   apply replacement Hpo' Γ _,
-  tauto, auto,
+  tauto, solve_by_elim,
 end
 
 lemma one_to_one
@@ -389,7 +389,7 @@ begin [temporal]
     have := init_in_w p' q' (Next_a A) (J' J) SIM₀ v ⦃o,sch⦄ Γ _ Hw,
     intro Hq,
     simp [p',q'] at this,
-    auto, },
+    solve_by_elim, },
   { clear_except SIM SIM₀ Hw H init_Jₐ evt_Jₐ,
     have H' := H' C v o sch _ H,
     replace SIM₀ := SIM₀' _ SIM₀,
@@ -401,7 +401,7 @@ begin [temporal]
       intros e h₀ h₁ h₂ h₃, replace this := this _,
       explicit' [Next_a]
       { intros, casesm* _ ∧ _,
-        constructor_matching* [Exists _,_ ∧ _] ; auto, },
+        constructor_matching* [Exists _,_ ∧ _] ; solve_by_elim, },
       simp [Next_c],
       suffices : ⟦ ⦃o,sch⦄,v | λ (σ σ' : (γ × evt) × β), map_left prod.fst σ ⊨ fs₁ e ∧ ((λ s s', s = e) on (prod.snd ∘ prod.fst)) σ σ' ∧ (C e on map_left prod.fst) σ σ' ⟧,
       explicit'
@@ -413,7 +413,7 @@ begin [temporal]
     { apply temporal.one_to_one.evt_Jₐ' }, },
   { intros h i,
     replace h := h i,
-    apply temporal.one_to_one.sched_ref; auto },
+    apply temporal.one_to_one.sched_ref; solve_by_elim },
 end
 end SPEC₂
 

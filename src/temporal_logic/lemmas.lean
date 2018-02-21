@@ -6,6 +6,8 @@ import util.logic
 import util.classical
 import util.predicate
 
+import tactic
+
 import temporal_logic.tactic
 
 universe variables u u₀ u₁ u₂
@@ -438,7 +440,7 @@ end
 @[monotonic]
 lemma next_imp_next {p q : cpred} (h : p ⟹ q)
 : ⊙ p ⟹ ⊙ q :=
-by { pointwise h with τ, auto }
+by { pointwise h with τ, solve_by_elim }
 
 @[monotonic]
 lemma next_tl_imp_next {Γ p q : cpred}

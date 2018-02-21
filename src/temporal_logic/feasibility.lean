@@ -64,7 +64,7 @@ lemma SIM₀' (v o : unit)
 : (∃ (w : α), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
 by { simp [q',p'] at *,
      apply exists_imp_exists _ init_FIS,
-     intros, split, auto, auto }
+     intros, split, solve_by_elim, solve_by_elim }
 end
 open function
 section
@@ -145,7 +145,7 @@ begin [temporal]
        o _ _ Γ _,
   { simp [one_to_one.SPEC₀,SPEC₀] at this ⊢,
     casesm* [p_exists _, _ ⋀ _],
-    existsi _, auto,
+    existsi _, solve_by_elim,
     split,
     { simp [A',p',action_on' _ _ prod.snd] at *,
       tauto, },

@@ -294,10 +294,10 @@ begin [temporal]
       { subst H₀_w, subst w', subst sch_a',
         apply_epsilon_spec,
         simp,
-        apply SIM ; auto },
+        apply SIM ; solve_by_elim },
       split, tauto,
       casesm* _ ∧ _,
-      apply evt_Jₐ ; apply hJₐ <|> auto }, },
+      apply evt_Jₐ ; apply hJₐ <|> solve_by_elim }, },
   { select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select Hq : q ! _,
     clear_except Hw SIM₀ Hq init_Jₐ,
@@ -335,7 +335,7 @@ begin [temporal]
     explicit'
     { cases Hw, subst w,
       apply_epsilon_spec,
-      simp, auto, } },
+      simp, solve_by_elim, } },
   { clear SIM₀,
     select h : ◻(_ ≃ _),
     select h' : ◻(p_exists _),
@@ -345,7 +345,7 @@ begin [temporal]
       casesm* [_ ∧ _,Exists _],
       subst h'_w,
       apply_epsilon_spec, simp,
-      apply SIM ; auto, } },
+      apply SIM ; solve_by_elim, } },
 end
 
 omit H
@@ -385,7 +385,7 @@ begin [temporal]
   explicit'
   { cases Hw, subst sch_a', casesm* [_∧_,Exists _],
     subst sch_c, apply_epsilon_spec,
-    simp, auto, },
+    simp, solve_by_elim, },
 end
 
 end
@@ -410,7 +410,7 @@ begin [temporal]
     subst sch_a', substs e',
     casesm* [_ ∧ _, Exists _], subst e,
     apply_epsilon_spec,
-    simp, apply SIM ; auto, },
+    simp, apply SIM ; solve_by_elim, },
 end
 omit valid_witness H
 /- latest idea: sch_a should be part of concrete state?
@@ -431,9 +431,9 @@ begin
       ◻(J ! ⦃o,w,v⦄),
   begin [temporal]
     simp, intros h₀ h₁ h₂, split*,
-    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo _ ; try { auto }, },
+    { apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo _ ; try { solve_by_elim }, },
     { apply temporal.many_to_many.witness_imp_SPEC₀_saf _ h₀ _ h₁, },
-    { auto }
+    { solve_by_elim }
   end,
   constructor,
   iterate 3
@@ -450,7 +450,7 @@ begin
     select hJ : ◻(J ! _),
     select H  : temporal.many_to_many.SPEC₂ _ _ _,
     have := temporal.many_to_many.H_C_imp_A _ _ _ _ Hw x e
-    ; try { auto <|> apply temporal.many_to_many.sch_w_spec },
+    ; try { solve_by_elim <|> apply temporal.many_to_many.sch_w_spec },
     cases H with H H₀,
     cases H with H₁ H₂,
     clear_except this SIM₀ SIM Hw hJ H₂,
@@ -473,12 +473,12 @@ lemma sched_ref (i : aevt) -- (w : tvar (aevt × α))
 : Γ ⊢ sched (cs₀ i ! ⦃o,w⦄) (fs₀ i ! ⦃o,w⦄) ⟦ o,w | A i ⟧ :=
 begin [temporal]
   have hJ : ◻(J ! ⦃o,w,v⦄),
-  { apply temporal.many_to_many.J_inv_in_w ; auto },
+  { apply temporal.many_to_many.J_inv_in_w ; solve_by_elim },
   apply splitting (Hpo i w sch_a) _ _,
   { split, split,
-    apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; auto,
-    apply temporal.many_to_many.witness_imp_SPEC₀_saf ; auto,
-    auto },
+    apply temporal.many_to_many.SPEC₂_imp_SPEC₁ Hpo ; solve_by_elim,
+    apply temporal.many_to_many.witness_imp_SPEC₀_saf ; solve_by_elim,
+    solve_by_elim },
   intro ce, cases ce with ce Hce,
   simp only, intros H₀ H₁,
   replace h := h ce Hce H₀ H₁,
@@ -507,7 +507,7 @@ begin [temporal]
     explicit'
     { intro, cases Hw,
       subst w, apply_epsilon_spec,
-      simp, auto, }, },
+      simp, solve_by_elim, }, },
   { clear_except SIM SIM₀ Hw H init_Jₐ evt_Jₐ,
     have hJ := temporal.many_to_many.J_inv_in_w _ H _ Hw,
     have hJₐ := temporal.many_to_many.abs_J_inv_in_w _ H _ Hw,
@@ -521,10 +521,10 @@ begin [temporal]
     { cases Hw, subst w', subst ce,
       apply_epsilon_spec,
       simp, apply SIM ; clear SIM,
-      repeat { auto }, }, },
+      repeat { solve_by_elim }, }, },
   { intros h i,
     apply temporal.many_to_many.sched_ref
-    ; repeat { auto <|> intro }, },
+    ; repeat { solve_by_elim <|> intro }, },
 end
 end SPEC₂
 end conc_sch
@@ -540,7 +540,7 @@ lemma refinement_SPEC₂
 begin [temporal]
   simp, intros sch Hc,
   apply temporal.many_to_many.many_to_many,
-  auto, auto,
+  solve_by_elim, solve_by_elim,
 end
 
 end refinement_SPEC₂

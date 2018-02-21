@@ -147,7 +147,7 @@ begin [temporal]
     { have := inf_often_of_leads_to (temporal.fairness.splitting.H₀ i) _, revert this,
       { monotonicity!, lifted_pred, show _, { intros, assumption } },
       rw_using : (p' ⋀ q' ⋀ w i) = (p' ⋀ w i ⋀ q'),
-      { lifted_pred, begin [smt] end },
+      { lifted_pred, tauto },
       apply coincidence _ hq',
       { apply stable_and_of_stable_of_stable hp',
         revert H₉, monotonicity! p_and_elim_right _ _ _, }, },

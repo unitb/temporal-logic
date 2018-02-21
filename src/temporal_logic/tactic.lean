@@ -57,7 +57,8 @@ by { dunfold temporal, apply_instance }
 namespace temporal
 open tactic applicative
 open interactive
-open tactic.interactive (resetI rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr')
+open tactic.interactive (resetI rw_rules rw_rules_t rw_rule get_rule_eqn_lemmas to_expr'
+                         solve_by_elim)
 open has_to_tactic_format
 open has_map list (filter)
 
@@ -372,9 +373,9 @@ begin
   induction ps with x xs,
   { simp [with_h_asms] at h,
     apply h },
-  { xassumption ; cases h', assumption,
+  { apply_assumption ; cases h', assumption,
     simp [with_h_asms] at h,
-    auto, }
+    solve_by_elim, }
 end
 
 open tactic tactic.interactive (unfold_coes unfold itactic assert_or_rule)
@@ -478,14 +479,14 @@ begin
   { simp [with_asms] at h ⊢,
     apply p_imp_intro _,
     { introv h₀, apply h _ , exact h₀, },
-    auto, },
+    solve_by_elim, },
   case list.cons : p ps
   { simp [with_asms] at h ⊢,
     intro hp,
     have h_and := (p_and_intro φ p Γ) h' hp,
     revert h_and,
     apply ps_ih,
-    intros, xassumption,
+    intros, apply_assumption,
     apply p_and_elim_left φ p Γ_1 a,
     apply p_and_elim_right φ p Γ_1 a,  }
 end
@@ -975,7 +976,8 @@ match q₁, q₂ with
   `(%%Γ ⊢ _) ← target,
   t ← i_to_expr e,
   t' ← to_expr ``(%%Γ ⊢ %%t),
-  v ← t_to_expr ``(%%p : %%t'),
+  p ← t_to_expr p,
+  v ← to_expr ``(%%p : %%t'),
   tactic.assertv h t' v
 | none, some p := do
   `(%%Γ ⊢ _) ← target,
@@ -1025,7 +1027,7 @@ meta def trivial : temporal unit :=
 `[apply of_eq_true (True_eq_true _)]
 
 meta def rw (rs : parse rw_rules) (l : parse location) (cfg : rewrite_cfg := { }) : temporal unit :=
-rewrite rs l cfg ; (trivial <|> auto <|> reflexivity <|> return ())
+rewrite rs l cfg ; (trivial <|> solve_by_elim <|> reflexivity <|> return ())
 
 meta def rewrite  (rs : parse rw_rules) (l : parse location) (cfg : rewrite_cfg := { }) : temporal unit :=
 rw rs l cfg
@@ -1283,7 +1285,7 @@ meta def find_matching_head : expr → list expr → tactic (list expr)
   do t ← infer_type H,
      (list.cons H <$ match_head e t <|> pure id) <*> find_matching_head e Hs
 
-meta def xassumption
+meta def apply_assumption
   (asms : option (list expr) := none)
   (tac : temporal unit := return ()) : tactic unit :=
 do { ctx ← asms.to_monad <|> local_context,
@@ -1300,8 +1302,8 @@ do { exfalso,
 
 /- TODO(Simon) Use  -/
 meta def assumption (tac : temporal unit := return ()) : temporal unit :=
-do `(_ ⊢ _) ← target | tactic.xassumption none tac,
-   xassumption none tac <|> strengthening (xassumption none tac)
+do `(_ ⊢ _) ← target | tactic.interactive.apply_assumption none tac,
+   apply_assumption none tac <|> strengthening (apply_assumption none tac)
 
 meta def try (tac : itactic) : temporal unit :=
 tactic.try tac
@@ -1358,14 +1360,14 @@ meta def right : temporal unit :=
 do `(%%Γ ⊢ %%p ⋁ %%q) ← target,
    apply ``(p_or_intro_right %%p %%q %%Γ _)
 
-meta def auto : temporal unit :=
+meta def solve_by_elim : temporal unit :=
 assumption $ assumption $ assumption done
 
 meta def tauto (greedy : parse (tk "!")?) : temporal unit :=
 () <$ intros [] ;
 casesm (some ()) [``(_ ⋀ _),``(_ ⋁ _)] ;
 split greedy (some ()) ;
-auto
+solve_by_elim
 
 meta def specialize (h : parse texpr) : temporal unit :=
 tactic.interactive.specialize h
@@ -1502,7 +1504,7 @@ begin [temporal]
   have := witness x₀ f Γ,
   revert this,
   apply p_exists_p_imp_p_exists,
-  auto
+  solve_by_elim
 end
 
 meta def select_witness

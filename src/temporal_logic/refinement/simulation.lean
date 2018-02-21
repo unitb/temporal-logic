@@ -98,7 +98,7 @@ begin [temporal]
         apply_epsilon_spec, },
       split, tauto,
       casesm* _ ∧ _,
-      apply evt_Jₐ ; apply hJₐ <|> auto }, },
+      apply evt_Jₐ ; apply hJₐ <|> solve_by_elim }, },
   { select Hw : _ ≃ temporal.simulation.Wx₀,
     select Hq : q ! _,
     clear_except Hw SIM₀ Hq init_Jₐ,

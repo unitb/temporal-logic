@@ -77,7 +77,7 @@ begin
     induction xs ; intro ys ; cases ys ; simp,
     intros, split,
     apply inj _ a,
-    auto },
+    solve_by_elim },
 end
 }
 
@@ -87,7 +87,7 @@ instance schedulable_prod : schedulable (α × β) :=
               { apply equiv.inj },
               intros _ _, casesm* _ × _,
               simp [prod.map], intros,
-              split ; apply inj ; auto } }
+              split ; apply inj ; solve_by_elim } }
 
 def index_pair : sigma η → ℕ × ℕ
  | ⟨x,y⟩ := (f x,f y)
@@ -99,9 +99,9 @@ instance schedulable_sigma : schedulable (sigma η) :=
               intros _ _, casesm* sigma _,
               simp [index_pair],
               intros,
-              have : a₁_fst = a₂_fst := inj _ (by auto),
+              have : a₁_fst = a₂_fst := inj _ (by solve_by_elim),
               subst a₂_fst, simp,
-              exact inj _ (by auto) }  }
+              exact inj _ (by solve_by_elim) }  }
 
 end inductive_construction
 
