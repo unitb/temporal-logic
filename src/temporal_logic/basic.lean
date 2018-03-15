@@ -1,5 +1,6 @@
 
 import util.predicate
+import util.meta.tactic
 
 @[user_attribute]
 meta def strengthening_attr : user_attribute :=

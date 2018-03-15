@@ -142,7 +142,7 @@ begin [temporal]
   simp only [SPEC₀,SPEC₁],
   apply ctx_p_and_p_imp_p_and',
   { apply temporal.simulation.init_in_w _ Hw },
-  { type_check_result "foo",
+  { -- type_check_result "foo",
     replace Hw := temporal.simulation.C_imp_A_in_w _ Hw ,
     monotonicity!,
     apply Hw, },
