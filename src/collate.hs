@@ -45,11 +45,9 @@ mkTable :: [Maybe (Cell,Cell)] -> Producer String IO ()
 mkTable rows = do
   let m0 = maximum (mapMaybe (fmap $ size . fst) rows)
       m1 = maximum (mapMaybe (fmap $ size . snd) rows)
-  yield $ printf "+%s+%s+" (replicate (m0 + 2) '-') (replicate (m1 + 2) '-')
   forM_ rows $ \case
     Just (x,y) -> yield $ printf "| %s | %s |" (render m0 x) (render m1 y)
-    Nothing    -> yield $ printf "+%s+%s+" (replicate (m0 + 2) '-') (replicate (m1 + 2) '-')
-  yield $ printf "+%s+%s+" (replicate (m0 + 2) '-') (replicate (m1 + 2) '-')
+    Nothing    -> yield $ printf "|%s+%s|" (replicate (m0 + 2) '-') (replicate (m1 + 2) '-')
 
 
 main :: IO ()
