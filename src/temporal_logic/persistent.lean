@@ -13,7 +13,7 @@ class postponable (p : cpred) : Prop :=
 export postponable (postpone)
 
 instance henceforth_persistent {p : cpred} : persistent (◻p) :=
-by { constructor, simp }
+by { constructor, simp only with tl_simp }
 
 instance persistent_not {p : cpred} [postponable p] : persistent (-p) :=
 by { constructor, rw [← not_eventually, postpone p] }
@@ -27,11 +27,11 @@ by { constructor, simp [henceforth_and,is_persistent], }
 
 instance coe_persistent (p : Prop)
 : persistent (p : cpred) :=
-by { constructor, cases classical.prop_complete p ; subst p ; simp, }
+by { constructor, cases classical.prop_complete p ; subst p ; simp with tl_simp, }
 
 instance false_persistent
 : persistent (False : cpred) :=
-by { constructor, simp, }
+by { constructor, simp only with tl_simp, }
 
 instance forall_persistent {p : α → cpred} [∀ i, persistent (p i)]
 : persistent (p_forall p) :=
@@ -61,7 +61,7 @@ by { simp [p_imp_iff_p_not_p_or], apply_instance }
 
 instance coe_postponable (p : Prop)
 : postponable (p : cpred) :=
-by { constructor, cases classical.prop_complete p ; subst p ; simp, }
+by { constructor, cases classical.prop_complete p ; subst p ; simp with tl_simp, }
 
 instance forall_postponable (p : α → cpred) [∀ i, postponable (p i)]
 : postponable (p_forall p) :=

@@ -18,7 +18,7 @@ namespace temporal
 open predicate stream
 
 attribute [predicate] stream.drop pred'.mk
-attribute [simp] pred'.mk
+attribute [tl_simp, simp] pred'.mk
 
 lemma henceforth_next (p : cpred)
 : ◻p ⟹ ◻⊙p :=
@@ -104,39 +104,39 @@ begin [temporal]
   apply Hqr,
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma next_or (p q : cpred)
 : ⊙(p ⋁ q) = ⊙p ⋁ ⊙q :=
 rfl
 
-@[simp]
+@[tl_simp, simp]
 lemma next_imp (p q : cpred)
 : ⊙(p ⟶ q) = ⊙p ⟶ ⊙q :=
 rfl
 
-@[simp]
+@[tl_simp, simp]
 lemma next_proj (f : var α β) (v : tvar α)
 : ⊙(f ! v) = f ! ⊙v :=
 by lifted_pred [next]
 
-@[simp]
+@[tl_simp, simp]
 lemma next_v_eq (p q : tvar α)
 : ⊙(p ≃ q) = ⊙p ≃ ⊙q :=
 by lifted_pred
 
 open nat
 
-@[simp]
+@[tl_simp, simp]
 lemma const_action (c : Prop) (v : tvar α)
 : ⟦ v | λ _ _ : α, c ⟧ = (c : cpred) :=
 by { refl }
 
-@[simp, predicate]
+@[tl_simp, simp, predicate]
 lemma models_coe (σ : α) (x : β)
 : σ ⊨ ↑x = x :=
 by { refl }
 
-@[simp, predicate]
+@[tl_simp, simp, predicate]
 lemma models_action (A : act α) (v : tvar α) (i : ℕ)
 : i ⊨ ⟦ v | A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
 by { refl }
@@ -155,7 +155,7 @@ lemma exists_action  (A : γ → act α) (v : tvar α)
 : (∃∃ i, ⟦ v | A i ⟧) = ⟦ v | λ s s', (∃ i, A i s s') ⟧ :=
 by { lifted_pred }
 
-@[simp, predicate]
+@[tl_simp, simp, predicate]
 lemma models_next (p : tvar α) (t : ℕ)
 : t ⊨ ⊙p = succ t ⊨ p :=
 by refl
@@ -218,14 +218,14 @@ instance and_postponable {p q : cpred}
   [postponable q]
 : postponable (p ⋀ q) :=
 by { constructor, rw ← p_not_eq_p_not_iff_eq,
-     simp [p_not_p_and,is_persistent], }
+     simp only [p_not_p_and,is_persistent] with tl_simp, }
 
 instance inf_often_postponable {p : cpred}
 : postponable (◻ ◇ p) :=
 begin
   constructor,
   rw ← p_not_eq_p_not_iff_eq,
-  simp [is_persistent],
+  simp only [is_persistent] with tl_simp,
 end
 
 lemma induct' (p : cpred) {Γ}
@@ -241,7 +241,7 @@ lemma induct_evt' (p q : cpred) {Γ}
 : Γ ⊢ ◻ (p ⟶ ◇q ⋁ ◻p) :=
 begin
   lifted_pred using h,
-  simp [henceforth] at *,
+  simp only [henceforth] with tl_simp at *,
   intros,
   simp [or_iff_not_imp,eventually],
   intros hnq k,
@@ -388,7 +388,7 @@ begin [temporal]
   split ; assumption
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma eventually_inf_often (p : cpred)
 : ◇◻◇p = ◻◇p :=
 mutual_entails

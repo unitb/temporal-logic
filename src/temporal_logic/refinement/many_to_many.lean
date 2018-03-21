@@ -488,6 +488,12 @@ begin [temporal]
   { intros, tauto },
 end
 
+/-
+  This proof works as:
+  Init₂ ⇒ Init₀
+  Saf₂  ⇒ Saf₀
+  Spec₂ ⇒ Live₀
+ -/
 lemma many_to_many
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
@@ -499,11 +505,10 @@ begin [temporal]
   -- have H' := temporal.many_to_many.H' , -- o sch,
   apply ctx_p_and_p_imp_p_and' _ _,
   apply ctx_p_and_p_imp_p_and' _ _,
-  { clear_except SIM₀ Hw H,
-    simp [Wtn,SPEC₂] at H Hw,
+  { clear_except SIM₀ Hw,
+    simp [Wtn,SPEC₂] at Hw,
     casesm _ ⋀ _,
     select Hw : (_ ≃ temporal.many_to_many.Wx₀),
-    clear H,
     explicit'
     { intro, cases Hw,
       subst w, apply_epsilon_spec,
@@ -511,7 +516,8 @@ begin [temporal]
   { clear_except SIM SIM₀ Hw H init_Jₐ evt_Jₐ,
     have hJ := temporal.many_to_many.J_inv_in_w _ H _ Hw,
     have hJₐ := temporal.many_to_many.abs_J_inv_in_w _ H _ Hw,
-    simp [Wtn,SPEC₂] at H Hw,
+    clear H,
+    simp [Wtn,SPEC₂] at Hw,
     casesm _ ⋀ _,
     monotonicity!,
     simp, intros ce h₀ h₁ h₂ h₃,
@@ -523,8 +529,10 @@ begin [temporal]
       simp, apply SIM ; clear SIM,
       repeat { solve_by_elim }, }, },
   { intros h i,
-    apply temporal.many_to_many.sched_ref
-    ; repeat { solve_by_elim <|> intro }, },
+    have REF := temporal.many_to_many.sched_ref Hpo sch_a H w i Hw,
+    clear_except REF h,
+    apply REF, intros,
+    apply h ; assumption, },
 end
 end SPEC₂
 end conc_sch
@@ -533,14 +541,12 @@ section refinement_SPEC₂
 include SIM₀ SIM wit Hpo inh_aevt inh_α init_Jₐ evt_Jₐ
 parameters cs₁ fs₁ cs₀ fs₀
 
--- variable {Γ : cpred}
-
 lemma refinement_SPEC₂
 : Γ ⊢ (∃∃ sch_c, SPEC₂ v o sch_c) ⟶ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   simp, intros sch Hc,
-  apply temporal.many_to_many.many_to_many,
-  solve_by_elim, solve_by_elim,
+  apply temporal.many_to_many.many_to_many ;
+  solve_by_elim,
 end
 
 end refinement_SPEC₂

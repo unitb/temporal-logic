@@ -10,6 +10,14 @@ Strenghtening lemmas to facilitate the stripping of small details in application
 Expected shape `∀ p : pred' α, ⊩ f p ⟶ g p`
 " }
 
+run_cmd mk_simp_attr `tl_simp [`simp]
+run_cmd
+do ns ← attribute.get_instances `simp,
+   let ns : list name := ns.filter (λ n, name.is_prefix_of `predicate n),
+   n ← tactic.mk_const (mk_simp_attr_decl_name `tl_simp),
+   ns.mmap' (λ n, user_attribute.set simp_attr.tl_simp n () tt),
+   return ()
+
 namespace tactic.interactive
 open lean interactive.types
 open interactive lean.parser tactic
@@ -95,7 +103,7 @@ lemma tl_imp_intro' (h : cpred) [persistent h] {p q : cpred}
 : ctx_impl h p q :=
 h' _
 
-@[simp]
+@[tl_simp, simp]
 lemma hence_true : ◻(True : cpred) = True :=
 begin
   ext1,
@@ -104,17 +112,17 @@ begin
   { intro, trivial }
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma next_true : ⊙True = True :=
 by lifted_pred
 
-@[simp]
+@[tl_simp, simp]
 lemma next_false : ⊙False = False :=
 by lifted_pred [next]
 
 instance true_persistent
 : persistent (True : cpred) :=
-by { constructor, simp, }
+by { constructor, simp with tl_simp, }
 
 lemma tl_imp_elim' {p q : cpred}
   (h : ctx_impl True p q)
@@ -209,7 +217,7 @@ begin
   apply h
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma eventually_eventually (p : cpred) : ◇◇ p = ◇ p :=
 begin
   ext k,
@@ -225,7 +233,7 @@ begin
     apply h }
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma henceforth_henceforth (p : cpred) : ◻◻ p = ◻ p :=
 begin
   ext _,
@@ -249,7 +257,7 @@ by { lifted_pred, split ; intros h i,
 
 /- True / False -/
 
-@[simp]
+@[tl_simp, simp]
 lemma hence_false : ◻(False : cpred) = False :=
 begin
   ext _,
@@ -258,7 +266,7 @@ begin
   { cases h }
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma event_false : ◇(False : cpred) = False :=
 begin
   ext _,
@@ -267,7 +275,7 @@ begin
   { cases h }
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma eventually_true : ◇(True : cpred) = True :=
 begin
   ext1,
@@ -381,14 +389,14 @@ begin
   rw forall_swap,
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma not_henceforth (p : cpred) : (- ◻p) = (◇-p) :=
 begin
   ext1,
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
-@[simp]
+@[tl_simp, simp]
 lemma not_eventually (p : cpred)
 : (-◇p) = (◻-p) :=
 begin

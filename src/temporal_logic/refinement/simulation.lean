@@ -221,7 +221,7 @@ begin
     introv hA, simp [A'], split,
     { apply hA },
     { apply INV _ _ hJ hA  } },
-  { simp [SPEC₁,C], }
+  { simp only [SPEC₁,C] with tl_simp, }
 end
 
 end witness_construction

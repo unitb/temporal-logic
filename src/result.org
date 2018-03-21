@@ -1,0 +1,44 @@
++--------------------------------------------+-----------------+
+| function                                   | total time (ms) |
++--------------------------------------------+-----------------+
+| temporal.interactive.explicit'             |         1072350 |
+| temporal.temp_to_fmt                       |          270570 |
+| temporal.execute                           |          120477 |
+| temporal.save_info                         |          113077 |
+| temporal.decl_to_fmt                       |           58459 |
+| temporal.intro                             |           43383 |
+| temporal.monotonicity                      |           42617 |
+| temporal.asm_stmt                          |           38324 |
+| temporal.create_persistent_context         |           22776 |
+| temporal.interactive.note                  |           16297 |
+| temporal.interactive.explicit              |           15677 |
+| temporal.persistently                      |           15032 |
+| temporal.interactive.cases                 |           13645 |
+| temporal.apply                             |           13377 |
+| temporal.interactive.subst_state_variables |           12977 |
+| temporal.interactive.find_matching_head    |           12178 |
+| temporal.interactive.persistent            |           12155 |
+| temporal.interactive.list_state_vars       |           10388 |
+| temporal.interactive.match_head            |            9921 |
+| temporal.rewrite                           |            7621 |
+| temporal.interactive.eventually            |            6975 |
+| temporal.interactive.assumption            |            6915 |
+| temporal.interactive.apply_assumption      |            6653 |
+| temporal.rw_goal                           |            6644 |
+| temporal.interactive.intro                 |            6035 |
+| temporal.interactive.cases_matching        |            5916 |
+| temporal.t_to_expr                         |            5757 |
+| temporal.interactive.henceforth            |            5585 |
+| temporal.interactive.intros                |            5323 |
+| temporal.interactive.rw                    |            5166 |
+| temporal.tmp_head                          |            4109 |
+| temporal.succeeds                          |            4027 |
+| temporal.interactive.tauto                 |            3970 |
+| temporal.interactive.strengthening         |            3921 |
+| temporal.specialized_apply                 |            3906 |
+| temporal.interactive.select_witness        |            3745 |
+| temporal.interactive.apply                 |            3441 |
+| temporal.temporal_eq_proof                 |            2799 |
+| temporal.get_assumptions                   |            2790 |
+| temporal.monotonicity1                     |            2700 |
++--------------------------------------------+-----------------+

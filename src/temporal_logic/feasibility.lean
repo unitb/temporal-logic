@@ -64,7 +64,7 @@ lemma SIM₀' (v o : unit)
 : (∃ (w : α), (o, w) ⊨ p' ∧ (o, w, v) ⊨ J') :=
 by { simp [q',p'] at *,
      apply exists_imp_exists _ init_FIS,
-     intros, split, solve_by_elim, solve_by_elim }
+     intros, split, assumption, apply init_INV, assumption }
 end
 open function
 section
@@ -116,13 +116,12 @@ begin
   { simp [tl_leads_to], },
   { simp [tl_leads_to], },
   begin [temporal]
-    simp [C',SPEC₁,sched,q',action_on _ _ prod.snd,SPEC₀.saf'],
-    intros _ _ _ h _, revert h,
-    monotonicity!,
-    simp, intros,
+    simp [SPEC₁,q',sched,SPEC₀.saf'],
+    intros _ _ _ h _, henceforth! at *,
+    intros, cases h with x h,
     explicit' [C,one_to_one.C',A']
-    { subst e, subst x, tauto },
-  end
+    { cc },
+  end,
 end
 
 include J init_INV init_FIS evt_INV evt_FIS Hpo' DLF

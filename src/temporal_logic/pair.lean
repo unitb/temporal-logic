@@ -10,7 +10,7 @@ section pair
 variables {α' : Type u} {β' : Type u₀} {γ' : Type u₁} {ω : Type u₂}
 variables (x : tvar α') (y : tvar β') (z : tvar γ')
 
-@[simp]
+@[tl_simp, simp]
 lemma pair_model (i : ℕ) :
 i ⊨ ⦃x,y⦄ = (i ⊨ x,i ⊨ y) :=
 by { cases x, cases y, refl }
@@ -23,56 +23,56 @@ def pair.fst : var (α' × β') α' :=
 def pair.snd : var (α' × β') β' :=
 ⟨ @prod.snd α' β' ⟩
 
-@[simp]
+@[tl_simp, simp]
 def pair.fst_mk (x : tvar α') (y : tvar β')
 : pair.fst ! ⦃x,y⦄ = x :=
 by lifted_pred
 
-@[simp]
+@[tl_simp, simp]
 def pair.fst_mk' (x : tvar α') (y : tvar β')
 : ⟨ @prod.fst α' β' ⟩ ! ⦃x,y⦄ = x :=
 pair.fst_mk _ _
 
-@[simp]
+@[tl_simp, simp]
 def pair.snd_mk (x : tvar α') (y : tvar β')
 : pair.snd ! ⦃x,y⦄ = y :=
 by lifted_pred
 
-@[simp]
+@[tl_simp, simp]
 def pair.snd_mk' (x : tvar α') (y : tvar β')
 : ⟨ @prod.snd α' β' ⟩ ! ⦃x,y⦄ = y :=
 by lifted_pred
 
-@[simp]
+@[tl_simp, simp]
 def prod.map_left {α β γ} (f : α → β) : α × γ → β × γ
  | (x,y) := (f x, y)
 
-@[simp]
+@[tl_simp, simp]
 def prod.map_right {α β γ} (f : β → γ) : α × β → α × γ
  | (x,y) := (x,f y)
 open temporal.prod
 
-@[simp]
+@[tl_simp, simp]
 lemma map_right_proj_pair (f : β' → γ')
 : ⟨map_right f⟩ ! ⦃x,y⦄ = ⦃x, ⟨f⟩ ! y⦄ :=
-by ext i ; simp [map_right]
+by ext i ; simp [map_right] with tl_simp
 
-@[simp]
+@[tl_simp, simp]
 lemma map_left_proj_pair (f : α' → γ')
 : ⟨map_left f⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x, y⦄ :=
-by ext i ; simp [map_left]
+by ext i ; simp [map_left] with tl_simp
 
-@[simp]
+@[tl_simp, simp]
 lemma map_proj_pair (f : α' → γ') (g : β' → ω)
 : ⟨prod.map f g⟩ ! ⦃x,y⦄ = ⦃⟨f⟩ ! x,⟨g⟩ ! y⦄ :=
-by ext i ; simp [prod.map]
+by ext i ; simp [prod.map] with tl_simp
 
-@[simp]
+@[tl_simp, simp]
 lemma eta_pair (w : tvar (α' × β'))
 : ⦃pair.fst ! w, pair.snd ! w⦄ = w :=
-by ext i ; simp [prod.map]
+by ext i ; simp [prod.map] with tl_simp
 
-@[simp]
+@[tl_simp, simp]
 lemma next_pair (v₀ : tvar α') (v₁ : tvar β')
 : ⊙⦃v₀,v₁⦄ = ⦃⊙v₀,⊙v₁⦄ :=
 by lifted_pred [next]

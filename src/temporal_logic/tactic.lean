@@ -146,6 +146,13 @@ do vs ← mmap pp vs, t ← pp t,
     | none := return format!"{vs'} : {t}"
    end
 
+meta def get_assumptions : temporal (list expr) :=
+do `(%%Γ ⊢ _) ← target,
+   ls ← local_context,
+   mfilter (λ l, succeeds $
+    do `(%%Γ' ⊢ %%e) ← infer_type l,
+       is_def_eq Γ Γ') ls
+
 meta def asm_stmt (Γ e : expr) : temporal (expr × expr × option expr) :=
 do t ← infer_type e,
    val ← get_local_value e,
@@ -161,13 +168,6 @@ def compact {α β : Type*} [decidable_eq β] : list (α × β) → list (list �
       if y = y' then (x::x', y) :: ys
                 else ([x],y) :: (x',y') :: ys
    end
-
-meta def get_assumptions : temporal (list expr) :=
-do `(%%Γ ⊢ _) ← target,
-   ls ← local_context,
-   mfilter (λ l, succeeds $
-    do `(%%Γ' ⊢ %%e) ← infer_type l,
-       is_def_eq Γ Γ') ls
 
 meta def temp_to_fmt (g : expr) : temporal format :=
 do  set_goals [g],
@@ -268,7 +268,7 @@ do intros,
           <|> refine ``(@id (_ ⊨ _) _) >> sem_to_syntactic
           <|> fail "expecting a goal of the form `_ ⊢ _` or `⊩ _ `"
    end,
-   target >>= whnf >>= change,
+   target >>= whnf >>= unsafe_change,
    c
 
 meta def revert (e : expr) : tactic unit :=
@@ -320,7 +320,7 @@ begin
   intro,
   replace h := λ h', judgement_trans Γ _ _ h' h,
   induction H with x xs,
-  { simp at h, simp [with_h_asms,h], },
+  { simp at h, simp [with_h_asms,h] with tl_simp, },
   { simp at h, simp_intros [with_h_asms], resetI,
     apply H_ih , intros,
     apply h,
@@ -948,9 +948,9 @@ do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
      tactic.clear h),
    let rs' := map simp_arg_type.expr [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)] ++ rs,
    let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
-   tactic.interactive.simp none ff rs' [`predicate] l { fail_if_unchanged := ff },
+   tactic.interactive.simp none ff rs' [`predicate,`tl_simp] l { fail_if_unchanged := ff },
    repeat (
-       tactic.interactive.simp none ff rs' [`predicate] l
+       tactic.interactive.simp none ff rs' [`predicate,`tl_simp] l
        <|> unfold_coes l),
    done <|> solve1 (do
      tactic.clear hΓ,
@@ -1327,14 +1327,19 @@ tactic.interactive.unfold ids l cfg
 meta def dsimp :=
 tactic.interactive.dsimp
 
-meta def simp (no_dflt : parse only_flag)
+meta def simp (use_iota_eqn : parse (parser.tk "!")?)
+              (no_dflt : parse only_flag)
               (hs : parse simp_arg_list)
               (attr_names : parse with_ident_list)
               (locat : parse location)
               (cfg : simp_config_ext := {}) : temporal unit :=
 -- if locat.include_goal
 -- then strengthening $ tactic.interactive.simp no_dflt hs attr_names locat cfg
-do tactic.interactive.simp none no_dflt hs attr_names locat cfg,
+do let attr_names :=
+       if no_dflt
+         then attr_names
+         else (`tl_simp :: attr_names),
+   tactic.interactive.simp use_iota_eqn no_dflt hs attr_names locat cfg,
    try refl
 
 meta def simp_coes (no_dflt : parse only_flag)
@@ -1342,7 +1347,11 @@ meta def simp_coes (no_dflt : parse only_flag)
               (attr_names : parse with_ident_list)
               (locat : parse location)
               (cfg : simp_config_ext := {}) : temporal unit :=
-do tactic.interactive.simp_coes none no_dflt hs attr_names locat cfg,
+do let attr_names :=
+       if no_dflt
+         then attr_names
+         else (`tl_simp :: attr_names),
+   tactic.interactive.simp_coes none no_dflt hs attr_names locat cfg,
    try refl
 
 meta def exfalso : temporal unit :=
@@ -1474,7 +1483,7 @@ meta def replace (n : parse ident)
 : parse (parser.tk ":" *> texpr)? → parse (parser.tk ":=" *> texpr)? → temporal unit
 | none (some prf) :=
 do prf ← t_to_expr prf,
-   tactic.interactive.replace n none (to_pexpr prf) >> try (simp tt [] [] (loc.ns [some n]))
+   tactic.interactive.replace n none (to_pexpr prf) >> try (simp none tt [] [] (loc.ns [some n]))
 | none none :=
 tactic.interactive.replace n none none
 | (some t) (some prf) :=
@@ -1632,7 +1641,7 @@ do `(%%Γ ⊢ _) ← target,
      tactic.revert Γ,
      refine ``(ew_wk _),
      τ ← intro1,
-     try $ temporal.interactive.simp tt [] [`predicate] (loc.ns [none]) ,
+     try $ temporal.interactive.simp none tt [] [`predicate] (loc.ns [none]) ,
      try $ tactic.interactive.TL_unfold [`init] (loc.ns [none]),
      try $ tactic.interactive.generalize none () (``(%%τ 0),`σ),
      target >>= (λ e, beta_reduction e tt) >>= change,
