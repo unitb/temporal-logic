@@ -136,15 +136,16 @@ instantiate_mvars e >>= beta_reduction' eta
 meta def succeeds {α} (tac : temporal α) : temporal bool :=
 tt <$ tac <|> pure ff
 
-meta def decl_to_fmt (vs : list expr) : expr × option expr → temporal format
-| (t,val):=
-do vs ← mmap pp vs, t ← pp t,
-   let vs' := format.join $ vs.intersperse " ",
-   match val with
-    | (some val) :=
-      do val ← pp val, return format!"{vs'} : {t} := {val}"
-    | none := return format!"{vs'} : {t}"
-   end
+meta def decl_to_fmt (s : tactic_state) (vs : list expr) : expr × option expr → format
+| (t,val) :=
+let vs := map s.format_expr vs,
+    t := s.format_expr t,
+    vs' := format.join $ vs.intersperse " " in
+match val with
+ | (some val) :=
+     format!"{vs'} : {t} := {s.format_expr val}"
+ | none := format!"{vs'} : {t}"
+end
 
 meta def get_assumptions : temporal (list expr) :=
 do `(%%Γ ⊢ _) ← target,
@@ -169,25 +170,26 @@ def compact {α β : Type*} [decidable_eq β] : list (α × β) → list (list �
                 else ([x],y) :: (x',y') :: ys
    end
 
-meta def temp_to_fmt (g : expr) : temporal format :=
+meta def temp_to_fmt (g : expr) : temporal (thunk format) :=
 do  set_goals [g],
-    `(%%Γ ⊢ %%p) ← target | to_fmt <$> read,
+    `(%%Γ ⊢ %%p) ← target | (λ s _, to_fmt s) <$> read,
     hs ← local_context,
     hs' ← mmap (asm_stmt Γ) hs,
-    hs' ← mfilter (λ x : _ × _, ff <$ is_def_eq Γ x.1 <|> pure tt) hs'
-          >>= mmapp decl_to_fmt ∘ compact,
-    p ← pp p,
-    return $ format.intercalate line [format.intercalate (","++line) hs',format!"⊢ {p}"]
+    hs' ← mfilter (λ x : _ × _, bnot <$> succeeds (is_def_eq Γ x.1)) hs',
+    s ← read,
+    let x := decl_to_fmt s ,
+    return $ λ _, format.intercalate line [format.intercalate (","++line) $ mapp (decl_to_fmt s) ∘ compact $ hs',format!"⊢ {s.format_expr p}"]
 
 meta def save_info (p : pos) : temporal unit :=
 do gs  ← get_goals,
    fmt ← mmap temp_to_fmt gs,
    set_goals gs,
-   let header := if gs.length > 1 then format!"{gs.length} goals\n" else "",
    tactic.save_info_thunk p (λ _,
+     let header := if gs.length > 1 then format!"{gs.length} goals\n" else "",
+         eval : thunk format → format := λ f, f () in
      if fmt.empty
        then "no goals"
-       else header ++ format.join (fmt.intersperse $ line ++ line))
+       else header ++ format.join ((fmt.map eval).intersperse $ line ++ line))
 
 meta def step {α : Type} (c : temporal α) : temporal unit :=
 c >>[tactic] cleanup
@@ -1605,6 +1607,17 @@ do get_local e >>= temporal.revert,
    else tactic.interactive.monotonicity (some $ sum.inl ``(%%f))
 
 private meta def goal_flag := tt <$ tk "⊢" <|> tt <$ tk "|-" <|> pure ff
+
+meta def interactive.guard_target
+     (e : parse texpr) : temporal unit :=
+do `(_ ⊢ %%t) ← target,
+   e ← to_expr e,
+   guard (t =ₐ e)
+
+meta def interactive.iterate
+     (n : parse small_nat)
+     (tac : temporal.interactive.itactic) : temporal unit :=
+do iterate_exactly n tac
 
 meta def interactive.eventually (h : parse ident) (goal : parse goal_flag) : temporal unit :=
 do `(%%Γ ⊢ %%p) ← target,

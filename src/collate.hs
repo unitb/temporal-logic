@@ -13,6 +13,8 @@ import Text.Printf
 import Pipes
 import qualified Pipes.Prelude as P
 
+-- grep -R . -e "% *temporal\\." --include ".*\\.out" > report.txt
+
 inputFile :: String
 inputFile = "report.txt"
 
@@ -28,8 +30,6 @@ takeWhile' p (x:xs) | p (x:xs)  = x : takeWhile' p xs
 compileTimestamp' :: [String] -> Maybe (String,Int)
 compileTimestamp' [_,t,_,fn] = Just (takeWhile' (not . isPrefixOf "._") fn,read $ take (length t - 2) t)
 compileTimestamp' _ = Nothing
-
--- grep -R . -e "% *temporal\\." --include ".*\\.out" > report.txt
 
 data Cell = LeftAlign String | RightAlign String
 
@@ -55,7 +55,7 @@ main = do
   lns <- lines <$> readFile inputFile
   let ls = mapMaybe (compileTimestamp' . words) lns
   let m = M.fromListWith (+) ls
-  let result = take 40 $ reverse $ sortOn snd $ M.toList m
+  let result = take 100 (reverse $ sortOn snd $ M.toList m) ++ [("total",sum m)]
       heading = Just (LeftAlign "function",LeftAlign "total time (ms)")
       table = heading : Nothing : map (Just . bimap LeftAlign (RightAlign . show)) result
   withFile "result.org" WriteMode $ \h ->

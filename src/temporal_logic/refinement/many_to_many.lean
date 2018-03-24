@@ -209,14 +209,14 @@ by repeat { unfold_coes <|> simp [Wf,Wf_f,ext] }
 variable valid_witness
 : Γ ⊢ Wtn ⦃sch_a,w⦄
 
-lemma abstract_sch (e : aevt)
-: Γ ⊢ sch_a ≃ e ⋀ cs₀ e ! ⦃o,w⦄ ⋀ fs₀ e ! ⦃o,w⦄ ⋀ ⟦ o,w | A e ⟧ ≡
-      sch_a ≃ e ⋀ ⟦ o,sch_a,w | Next_a ⟧ :=
-begin
-  lifted_pred [Next_a,on_fun],
-  split ; intro h ; split
-  ; casesm* _ ∧ _ ; subst e ; tauto,
-end
+-- lemma abstract_sch (e : aevt)
+-- : Γ ⊢ sch_a ≃ e ⋀ cs₀ e ! ⦃o,w⦄ ⋀ fs₀ e ! ⦃o,w⦄ ⋀ ⟦ o,w | A e ⟧ ≡
+--       sch_a ≃ e ⋀ ⟦ o,sch_a,w | Next_a ⟧ :=
+-- begin
+--   lifted_pred [Next_a,on_fun],
+--   split ; intro h ; split
+--   ; casesm* _ ∧ _ ; subst e ; tauto,
+-- end
 
 section Simulation_POs
 -- include SIM₀ Hc2a
