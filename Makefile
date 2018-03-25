@@ -5,20 +5,19 @@ LEAN_OPT =
 SRC = $(shell git ls-files | grep "\\.lean")
 PROF = $(SRC:.lean=.lean.test_suite.out)
 
-profile:
-	leanpkg build -- --profile --test-suite
+profile: $(PROF)
 
 # %.prof.txt: %.lean
-# %.lean.test_suite.out: %.lean
-# 	lean $^ --profile --test-suite
+%.lean.test_suite.out: %.lean
+	lean $^ --profile --test-suite
 
 all:
 	leanpkg build
 
 clean:
-	/usr/bin/find src -name "*.olean" -delete
-	/usr/bin/find src -name "*.lean.test_suite.out" -delete
-	/usr/bin/find src -name "*.lean.status" -delete
+	/usr/bin/find src test -name "*.olean" -delete
+	/usr/bin/find src test -name "*.lean.test_suite.out" -delete
+	/usr/bin/find src test -name "*.lean.status" -delete
 
 deep-clean:
 	/usr/bin/find . -name "*.olean" -delete

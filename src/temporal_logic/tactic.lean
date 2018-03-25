@@ -466,14 +466,14 @@ lemma judgement_congr {Γ p q : cpred}
 by { apply iff.to_eq, split ; intro h' ;
      lifted_pred using h h' ; cc }
 
-def with_asms {β} (Γ : pred' β) : Π (xs : list (name × pred' β)) (x : pred' β), Prop
+def with_asms {β} (Γ : pred' β) : Π (xs : list (string × pred' β)) (x : pred' β), Prop
  | [] x := Γ ⊢ x
  | ((h,x) :: xs) y := Γ ⊢ x → with_asms xs y
 
-def tl_seq {β} (xs : list (name × pred' β)) (x : pred' β) : Prop :=
+def tl_seq {β} (xs : list (string × pred' β)) (x : pred' β) : Prop :=
 ∀ Γ, with_asms Γ xs x
 
-lemma p_forall_intro_asms_aux {β t} (ps : list (name × pred' β))
+lemma p_forall_intro_asms_aux {β t} (ps : list (string × pred' β))
   (φ : pred' β) (q : t → pred' β)
   (h : ∀ x Γ, Γ ⊢ φ → with_asms Γ ps (q x))
   (Γ : pred' β)
@@ -497,7 +497,7 @@ begin
     apply p_and_elim_right φ p Γ_1 a,  }
 end
 
-lemma p_forall_intro_asms {t β} (ps : list (name × pred' β)) (q : t → pred' β)
+lemma p_forall_intro_asms {t β} (ps : list (string × pred' β)) (q : t → pred' β)
   (h : ∀ x, tl_seq ps (q x))
 : tl_seq ps (p_forall q) :=
 begin
@@ -507,8 +507,8 @@ begin
   simp
 end
 
-lemma p_imp_intro_asms_aux {β} (ps : list (name × pred' β))
-  (φ q r : pred' β) (n : name)
+lemma p_imp_intro_asms_aux {β} (ps : list (string × pred' β))
+  (φ q r : pred' β) (n : string)
   (h : ∀ Γ, Γ ⊢ φ → with_asms Γ (ps ++ [(n,q)]) r)
   (Γ : pred' β)
   (h' : Γ ⊢ φ )
@@ -532,8 +532,8 @@ begin
     apply p_and_elim_right φ p Γ_1 a,  }
 end
 
-lemma p_imp_intro_asms {β} (ps : list (name × pred' β))
-  (q r : pred' β) (n : name)
+lemma p_imp_intro_asms {β} (ps : list (string × pred' β))
+  (q r : pred' β) (n : string)
   (h : tl_seq (ps ++ [(n,q)]) r)
 : tl_seq ps (q ⟶ r) :=
 begin
@@ -557,7 +557,7 @@ private meta def mk_type_list : list expr → temporal expr
  | (x :: xs) :=
    do es ← mk_type_list xs,
       `(_ ⊢ %%t) ← infer_type x,
-      let n := x.local_pp_name,
+      let n := x.local_pp_name.to_string,
       to_expr ``(list.cons (%%(reflect n), %%t) %%es)
 open list (cons)
 
@@ -565,7 +565,7 @@ private meta def parse_list : expr → temporal (list (name × expr))
  | `([]) := pure []
  | `( list.cons (%%n,%%e) %%es ) :=
  do n' ← eval_expr _ n,
-    (::) (n',e) <$> parse_list es
+    (::) (mk_simple_name n',e) <$> parse_list es
  | _ := pure []
 
 private meta def enter_list_state : temporal (expr × list expr × expr) :=
@@ -608,7 +608,7 @@ do ( to_expr ``(tl_seq _ (_ ⟶ _)) >>= change
    match g with
     | `(%%p ⟶ %%q)  :=
       do let h := n.get_or_else `_,
-         tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h) _),
+         tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h.to_string) _),
          return $ sum.inr h
     | `(p_forall %%P) :=
       do let h := n.get_or_else `_,
@@ -665,7 +665,7 @@ do to_expr ``(_ ⊢ _ ⟶ _) >>= change <|>
     | `(%%Γ ⊢ %%p ⟶ %%q)  := do
       try (to_expr ``(persistent %%Γ) >>= mk_instance >>= clear),
       let h := n.get_or_else `_,
-      within_list_state (λ ps, tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h) _)),
+      within_list_state (λ ps, tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h.to_string) _)),
       intro h
     | `(%%Γ ⊢ p_forall (λ _, %%P)) := do
       refine ``((p_forall_to_fun %%Γ (λ _, %%P)).mpr _),
