@@ -1,10 +1,12 @@
 
 import util.predicate
+import util.data.option
 import util.control.applicative
 import util.meta.tactic
 import meta.expr
 
 import tactic
+import tactic.find
 
 import temporal_logic.basic
 import temporal_logic.persistent
@@ -464,26 +466,28 @@ lemma judgement_congr {Γ p q : cpred}
 by { apply iff.to_eq, split ; intro h' ;
      lifted_pred using h h' ; cc }
 
-def with_asms {β} (Γ : pred' β) : Π (xs : list (pred' β)) (x : pred' β), Prop
+def with_asms {β} (Γ : pred' β) : Π (xs : list (name × pred' β)) (x : pred' β), Prop
  | [] x := Γ ⊢ x
- | (x :: xs) y := Γ ⊢ x → with_asms xs y
+ | ((h,x) :: xs) y := Γ ⊢ x → with_asms xs y
 
-lemma p_imp_intro_asms_aux {β} (ps : list (pred' β))
-  (φ q r : pred' β)
-  (h : ∀ Γ, Γ ⊢ φ → with_asms Γ (ps ++ [q]) r)
+def tl_seq {β} (xs : list (name × pred' β)) (x : pred' β) : Prop :=
+∀ Γ, with_asms Γ xs x
+
+lemma p_forall_intro_asms_aux {β t} (ps : list (name × pred' β))
+  (φ : pred' β) (q : t → pred' β)
+  (h : ∀ x Γ, Γ ⊢ φ → with_asms Γ ps (q x))
   (Γ : pred' β)
   (h' : Γ ⊢ φ )
-: with_asms Γ ps (q ⟶ r) :=
+: with_asms Γ ps (p_forall q) :=
 begin
-  revert φ,
-  induction ps ; introv h h',
+  induction ps generalizing φ,
   case list.nil
   { simp [with_asms] at h ⊢,
-    apply p_imp_intro _,
-    { introv h₀, apply h _ , exact h₀, },
-    solve_by_elim, },
+    rw p_forall_to_fun,
+    introv, apply h _ , exact h', },
   case list.cons : p ps
-  { simp [with_asms] at h ⊢,
+  { cases p with n p,
+    simp [with_asms] at h ⊢,
     intro hp,
     have h_and := (p_and_intro φ p Γ) h' hp,
     revert h_and,
@@ -493,15 +497,58 @@ begin
     apply p_and_elim_right φ p Γ_1 a,  }
 end
 
-lemma p_imp_intro_asms {β} (ps : list (pred' β)) (q r : pred' β)
-  (h : ∀ Γ, with_asms Γ (ps ++ [q]) r)
-  (Γ : pred' β)
-: with_asms Γ ps (q ⟶ r) :=
+lemma p_forall_intro_asms {t β} (ps : list (name × pred' β)) (q : t → pred' β)
+  (h : ∀ x, tl_seq ps (q x))
+: tl_seq ps (p_forall q) :=
 begin
-  apply p_imp_intro_asms_aux _ True,
+  intro,
+  apply p_forall_intro_asms_aux _ True,
   { intros, apply h },
   simp
 end
+
+lemma p_imp_intro_asms_aux {β} (ps : list (name × pred' β))
+  (φ q r : pred' β) (n : name)
+  (h : ∀ Γ, Γ ⊢ φ → with_asms Γ (ps ++ [(n,q)]) r)
+  (Γ : pred' β)
+  (h' : Γ ⊢ φ )
+: with_asms Γ ps (q ⟶ r) :=
+begin
+  induction ps generalizing φ,
+  case list.nil
+  { simp [with_asms] at h ⊢,
+    apply p_imp_intro _,
+    { introv h₀, apply h _ , exact h₀, },
+    solve_by_elim, },
+  case list.cons : p ps
+  { cases p with n p,
+    simp [with_asms] at h ⊢,
+    intro hp,
+    have h_and := (p_and_intro φ p Γ) h' hp,
+    revert h_and,
+    apply ps_ih,
+    intros, apply_assumption,
+    apply p_and_elim_left φ p Γ_1 a,
+    apply p_and_elim_right φ p Γ_1 a,  }
+end
+
+lemma p_imp_intro_asms {β} (ps : list (name × pred' β))
+  (q r : pred' β) (n : name)
+  (h : tl_seq (ps ++ [(n,q)]) r)
+: tl_seq ps (q ⟶ r) :=
+begin
+  intro, apply p_imp_intro_asms_aux _ True,
+  { intros, apply h },
+  simp
+end
+
+-- lemma canonical_sequent {β} (Γ p : pred' β)
+-- : Γ ⊢ p ↔ (∀ Γ', Γ' ⊢ Γ → Γ' ⊢ p) :=
+-- begin
+--   split ; intro,
+--   { intros, transitivity ; assumption },
+--   apply_assumption, refl
+-- end
 
 end lemmas
 
@@ -510,39 +557,136 @@ private meta def mk_type_list : list expr → temporal expr
  | (x :: xs) :=
    do es ← mk_type_list xs,
       `(_ ⊢ %%t) ← infer_type x,
-      to_expr ``(list.cons %%t %%es)
+      let n := x.local_pp_name,
+      to_expr ``(list.cons (%%(reflect n), %%t) %%es)
+open list (cons)
 
-meta def intro (n : option name) : temporal expr :=
+private meta def parse_list : expr → temporal (list (name × expr))
+ | `([]) := pure []
+ | `( list.cons (%%n,%%e) %%es ) :=
+ do n' ← eval_expr _ n,
+    (::) (n',e) <$> parse_list es
+ | _ := pure []
+
+private meta def enter_list_state : temporal (expr × list expr × expr) :=
+do `(%%Γ ⊢ %%p) ← target,
+   ls ← get_assumptions,
+   ls' ← mk_type_list ls,
+   r ← revert_lst (Γ :: ls).reverse,
+   let k := ls.length + 1,
+   guard (r = k)
+         <|> fail format!"wrong use of context {Γ}: {r} ≠ {k}",
+   to_expr ``(tl_seq %%ls' %%p) >>= unsafe_change,
+   return (Γ, ls, ls')
+
+private meta def exit_list_state : temporal (list expr) :=
+do `(tl_seq %%ps %%g) ← target | return [],
+   tactic.interactive.unfold
+        [ `has_append.append
+        , `list.append] (loc.ns [none]),
+   `(tl_seq %%ps %%g) ← target,
+   ps' ← parse_list ps,
+   tactic.interactive.unfold
+        [ `temporal.tl_seq
+        , `temporal.with_asms ] (loc.ns [none]),
+   tactic.intro_lst (`Γ :: ps'.map prod.fst)
+
+private meta def within_list_state {α} (tac : expr → temporal α) : temporal α :=
+do (Γ,ls,ls') ← enter_list_state,
+   tac ls' <* do
+      tactic.interactive.unfold
+        [ `temporal.with_asms
+        , `temporal.tl_seq
+        , `has_append.append
+        , `list.append] (loc.ns [none]),
+      tactic.intro_lst ((Γ :: ls).map expr.local_pp_name)
+
+meta def intro_aux (n : option name) : temporal (expr ⊕ name) :=
+do ( to_expr ``(tl_seq _ (_ ⟶ _)) >>= change
+       <|> to_expr ``(tl_seq _ (p_forall _)) >>= change ),
+   `(tl_seq %%ps %%g) ← target >>= instantiate_mvars,
+   match g with
+    | `(%%p ⟶ %%q)  :=
+      do let h := n.get_or_else `_,
+         tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h) _),
+         return $ sum.inr h
+    | `(p_forall %%P) :=
+      do let h := n.get_or_else `_,
+         tactic.refine ``(p_forall_intro_asms %%ps %%P _),
+         x ← intro h,
+         P' ← head_beta (P x),
+         to_expr ``(tl_seq %%ps %%P') >>= unsafe_change ,
+         return $ sum.inl x
+    | _ := fail "expecting `_ ⟶ _` or `∀∀ _, _`"
+   end
+
+def cons_opt {α β} : α ⊕ β → list α × list β → list α × list β
+ | (sum.inr y) (xs,ys) := (xs,    y::ys)
+ | (sum.inl x) (xs,ys) := (x::xs, ys   )
+
+meta def intro_lst : option (list name) → temporal (list expr × list name)
+ | none := (cons_opt <$> intro_aux none <*> intro_lst none) <|> pure ([],[])
+ | (some []) := return ([],[])
+ | (some (x::xs)) := cons_opt <$> intro_aux (some x) <*> intro_lst (some xs)
+
+meta def get_one_name : option (list name) → option (name × option (list name))
+ | none := some (`_, none)
+ | (some []) := none
+ | (some (x::xs)) := some (x, some xs)
+
+open list (hiding map)
+
+meta def intros : option (list name) → temporal (list expr)
+| ns :=
+do some (n,ns') ← pure (get_one_name ns) | return [],
+   mcond (succeeds $ to_expr ``(_ ⊢ _ ⟶ _) >>= change <|>
+                     to_expr ``(_ ⊢ p_forall _) >>= change)
+   (do g ← target,
+       match g with
+        | `(%%Γ ⊢ %%p ⟶ %%q)  := do
+          try (to_expr ``(persistent %%Γ) >>= mk_instance >>= clear),
+          (es,ls') ← within_list_state (λ _, intro_lst ns),
+          (++) es <$> tactic.intro_lst ls'
+        | `(%%Γ ⊢ p_forall (λ _, %%P)) := do
+          refine ``((p_forall_to_fun %%Γ (λ _, %%P)).mpr _),
+          n ← tactic.intro n,
+          to_expr ``(%%Γ ⊢ %%(P.instantiate_var n)) >>= change,
+          cons n <$> intros ns'
+        | _ := fail "expecting `_ ⟶ _` or `∀∀ _, _`"
+       end)
+   (return [])
+
+meta def intro1 (n : option name) : temporal expr :=
 do to_expr ``(_ ⊢ _ ⟶ _) >>= change <|>
       to_expr ``(_ ⊢ p_forall _) >>= change <|>
       fail "expecting `_ ⟶ _` or `∀∀ _, _`",
    g ← target,
    match g with
     | `(%%Γ ⊢ %%p ⟶ %%q)  := do
-      ls ← get_assumptions,
       try (to_expr ``(persistent %%Γ) >>= mk_instance >>= clear),
-      ls' ← mk_type_list ls,
-      r ← revert_lst (Γ :: ls).reverse,
-      let k := ls.length + 1,
-      guard (r = k)
-            <|> fail format!"wrong use of context {Γ}: {r} ≠ {k}",
-      h ← to_expr  ``(p_imp_intro_asms %%ls' %%p %%q) >>= note `h none,
-      tactic.interactive.unfold [`temporal.with_asms,`has_append.append,`list.append] (loc.ns [`h]),
-      h ← get_local `h, tactic.apply h,
-      tactic.clear h,
-      tactic.intro_lst ((Γ :: ls).map expr.local_pp_name),
-      tactic.intro (n.get_or_else `_)
+      let h := n.get_or_else `_,
+      within_list_state (λ ps, tactic.refine ``(p_imp_intro_asms %%ps %%p %%q %%(reflect h) _)),
+      intro h
     | `(%%Γ ⊢ p_forall (λ _, %%P)) := do
       refine ``((p_forall_to_fun %%Γ (λ _, %%P)).mpr _),
-      n ← tactic.intro (n.get_or_else `_),
+      n ← tactic.intro $ n.get_or_else `_,
       n <$ (to_expr ``(%%Γ ⊢ %%(P.instantiate_var n)) >>= change)
     | _ := fail "expecting `_ ⟶ _` or `∀∀ _, _`"
    end
 
 /-- Introduces new hypotheses with forward dependencies -/
 meta def intros_dep : tactic (list expr) :=
-do `(_ ⊢ p_forall _) ← target | return [],
-   lift₂ (::) (intro none) intros_dep
+do g ← target | return [],
+   match g with
+    | `(_ ⊢ p_forall _) := lift₂ (::) (intro1 none) intros_dep
+    | `(tl_seq %%ps (p_forall %%P)) :=
+      do tactic.refine ``(p_forall_intro_asms %%ps %%P _),
+         x ← intro  P.binding_name,
+         P' ← head_beta (P x),
+         to_expr ``(tl_seq %%ps %%P') >>= unsafe_change ,
+         cons x <$> intros_dep
+    | _ := return []
+   end
 
 @[user_attribute]
 meta def lifted_congr_attr : user_attribute :=
@@ -757,7 +901,7 @@ do p ← infer_type pr >>= beta_reduction,
 meta def bind_name (e : expr) (n h : name) : temporal expr :=
 do refine ``(one_point_elim _ _ %%e _),
    x ← tactic.intro n,
-   temporal.intro h,
+   temporal.intros (some [h]),
    return x
 
 meta def existsi (e : expr) (id : name) : temporal unit :=
@@ -917,9 +1061,9 @@ do vs ← list_state_vars `(ℕ),
      n' ← mk_fresh_name,
      v ← rename v.local_pp_name n' >> get_local n',
      p ← to_expr ``(%%σ ⊨ %%v),
-     try (generalize p n >> intro1),
+     try (generalize p n >> tactic.intro1),
      p' ← to_expr ``(nat.succ %%σ ⊨ %%v),
-     try (generalize p' n_primed >> intro1),
+     try (generalize p' n_primed >> tactic.intro1),
      return v),
    ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
    when p.verbose trace_state,
@@ -1002,15 +1146,22 @@ meta def strengthen_to (e : parse texpr) : temporal unit :=
 strengthening (to_expr ``(_ ⊢ %%e) >>= change)
 
 meta def intro (n : parse ident_?) : temporal unit :=
-() <$ temporal.intro n
+() <$ temporal.intros (some [n.get_or_else `_])
 
 meta def intros : parse ident_* → temporal unit
- | [] := repeat (intro `_)
- | xs := mmap' (intro ∘ some) xs
+ | [] := () <$ temporal.intros none
+ | xs := () <$ temporal.intros (some xs)
 
-meta def introv : parse ident_* → tactic (list expr)
+meta def introv' : parse ident_* → temporal (list expr)
 | []      := intros_dep
-| (n::ns) := do hs ← intros_dep, h ← temporal.intro n, hs' ← introv ns, return (hs ++ h :: hs')
+| (n::ns) := do hs  ← intros_dep,
+                try (enter_list_state),
+                h ← intro_aux n,
+                hs' ← introv ns,
+                return (hs ++ hs')
+
+meta def introv (ls : parse ident_*) : temporal (list expr) :=
+(++) <$> introv' ls <*> exit_list_state
 
 meta def revert (ns : parse ident*) : temporal unit :=
 mmap get_local ns >>= mmap' temporal.revert
@@ -1084,11 +1235,11 @@ do e' ← to_expr e.2,
        e' ← if e'.is_local_constant
        then mk_fresh_name >>= rename' e'
        else return e',
-       to_expr ``(pair.fst ! %%e') >>= λ e, tactic.generalize e h₀ >> intro1,
-       to_expr ``(pair.snd ! %%e') >>= λ e, tactic.generalize e h₁ >> intro1,
-       h ← intro1,
+       to_expr ``(pair.fst ! %%e') >>= λ e, tactic.generalize e h₀ >> tactic.intro1,
+       to_expr ``(pair.snd ! %%e') >>= λ e, tactic.generalize e h₁ >> tactic.intro1,
+       h ← tactic.intro1,
        z ← if e'.is_local_constant then return e'
-       else tactic.generalize e' `z >> intro1,
+       else tactic.generalize e' `z >> tactic.intro1,
        tactic.subst z )
 <|>
    tactic.interactive.cases e ids
@@ -1189,7 +1340,7 @@ tactic.interactive.case ctor ids tac
 meta def focus_left' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    `[rw [p_or_comm,← p_not_p_imp]],
-   temporal.intro id
+   temporal.intro1 id
 
 meta def focus_left (ids : parse with_ident_list) : temporal unit :=
 () <$ focus_left' ids.opt_head
@@ -1204,7 +1355,7 @@ do x ← focus_left' ids.opt_head,
 meta def focus_right' (id : option name) : temporal expr :=
 do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    `[rw [← p_not_p_imp]],
-   temporal.intro id
+   temporal.intro1 id
 
 meta def focus_right (ids : parse with_ident_list) : temporal unit :=
 () <$ focus_right' ids.opt_head
@@ -1631,7 +1782,7 @@ do `(%%Γ ⊢ %%p) ← target,
    else
      interactive.persistent [] >>
      persistently (do `(%%Γ ⊢ ◇%%q ⟶ %%p) ← target, refine ``(p_imp_postpone %%Γ %%q %%p _)),
-   () <$ intro (some h)
+   () <$ intro1 (some h)
 
 meta def timeless (h : expr) : temporal (option name) :=
 do try $ interactive.henceforth none (loc.ns [some h.local_pp_name]),
@@ -1653,7 +1804,7 @@ do `(%%Γ ⊢ _) ← target,
      let n := xs.filter_map id,
      tactic.revert Γ,
      refine ``(ew_wk _),
-     τ ← intro1,
+     τ ← tactic.intro1,
      try $ temporal.interactive.simp none tt [] [`predicate] (loc.ns [none]) ,
      try $ tactic.interactive.TL_unfold [`init] (loc.ns [none]),
      try $ tactic.interactive.generalize none () (``(%%τ 0),`σ),

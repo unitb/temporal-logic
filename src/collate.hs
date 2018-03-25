@@ -1,3 +1,4 @@
+-- stack runghc
 {-# LANGUAGE LambdaCase #-}
 
 module Main where

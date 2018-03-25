@@ -32,7 +32,7 @@ lemma next_henceforth (p : cpred)
 begin [temporal]
   suffices : ◻◻p ⟶ ⊙◻p,
   { simp at this, apply this },
-  intro h, apply h
+  intro h, apply h,
 end
 
 lemma next_eventually_comm (p : cpred)

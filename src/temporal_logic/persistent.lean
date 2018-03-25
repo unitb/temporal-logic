@@ -3,7 +3,7 @@ import temporal_logic.basic
 
 universe variables u u₀ u₁ u₂
 
-variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
+variables {α : Sort u₀} {β : Sort u₁} {γ : Sort u₂}
 
 namespace temporal
 open predicate
@@ -109,6 +109,13 @@ lemma judgement_trans (p q r : pred' β)
 by { lifted_pred keep,
      apply h₁.apply,
      apply h₀.apply _ a }
+
+@[trans]
+lemma judgement_trans' {p q r : pred' β}
+  (h₀ : p ⊢ q)
+  (h₁ : q ⊢ r)
+: p ⊢ r :=
+judgement_trans _ _ _ h₀ h₁
 
 lemma p_imp_postpone (Γ p q : cpred)
   [persistent Γ]
