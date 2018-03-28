@@ -466,12 +466,23 @@ lemma judgement_congr {Γ p q : cpred}
 by { apply iff.to_eq, split ; intro h' ;
      lifted_pred using h h' ; cc }
 
-def with_asms {β} (Γ : pred' β) : Π (xs : list (string × pred' β)) (x : pred' β), Prop
- | [] x := Γ ⊢ x
- | ((h,x) :: xs) y := Γ ⊢ x → with_asms xs y
+def with_asms {β} (Γ : pred' β) (xs : list (string × pred' β)) (x : pred' β) : Prop :=
+xs.foldl (λ p ⟨_,q⟩, Γ ⊢ q → p) (Γ ⊢ x)
 
 def tl_seq {β} (xs : list (string × pred' β)) (x : pred' β) : Prop :=
 ∀ Γ, with_asms Γ xs x
+
+lemma with_asms_cons  {β} (ps : list (string × pred' β))
+  (Γ p φ : pred' β) (n : string)
+: with_asms Γ ((n,p) :: ps) φ ↔ Γ ⊢ p → with_asms Γ ps φ :=
+begin
+  simp [with_asms],
+  generalize : Γ ⊢ φ = q,
+  induction ps generalizing p q, refl,
+  { cases ps_hd with n' p',
+    simp [foldl,with_asms._match_1,ps_ih],
+    tauto, },
+end
 
 lemma p_forall_intro_asms_aux {β t} (ps : list (string × pred' β))
   (φ : pred' β) (q : t → pred' β)
@@ -480,14 +491,14 @@ lemma p_forall_intro_asms_aux {β t} (ps : list (string × pred' β))
   (h' : Γ ⊢ φ )
 : with_asms Γ ps (p_forall q) :=
 begin
-  induction ps generalizing φ,
+  induction ps generalizing φ ,
   case list.nil
   { simp [with_asms] at h ⊢,
     rw p_forall_to_fun,
     introv, apply h _ , exact h', },
   case list.cons : p ps
   { cases p with n p,
-    simp [with_asms] at h ⊢,
+    simp [with_asms_cons] at h ⊢,
     intro hp,
     have h_and := (p_and_intro φ p Γ) h' hp,
     revert h_and,
@@ -509,7 +520,7 @@ end
 
 lemma p_imp_intro_asms_aux {β} (ps : list (string × pred' β))
   (φ q r : pred' β) (n : string)
-  (h : ∀ Γ, Γ ⊢ φ → with_asms Γ (ps ++ [(n,q)]) r)
+  (h : ∀ Γ, Γ ⊢ φ → with_asms Γ ((n,q) :: ps) r)
   (Γ : pred' β)
   (h' : Γ ⊢ φ )
 : with_asms Γ ps (q ⟶ r) :=
@@ -522,19 +533,19 @@ begin
     solve_by_elim, },
   case list.cons : p ps
   { cases p with n p,
-    simp [with_asms] at h ⊢,
+    simp [with_asms_cons] at h ⊢,
     intro hp,
     have h_and := (p_and_intro φ p Γ) h' hp,
     revert h_and,
     apply ps_ih,
-    intros, apply_assumption,
-    apply p_and_elim_left φ p Γ_1 a,
+    simp_intros [with_asms_cons], apply h,
+    apply p_and_elim_left φ p Γ_1 a, assumption,
     apply p_and_elim_right φ p Γ_1 a,  }
 end
 
 lemma p_imp_intro_asms {β} (ps : list (string × pred' β))
   (q r : pred' β) (n : string)
-  (h : tl_seq (ps ++ [(n,q)]) r)
+  (h : tl_seq ((n,q) :: ps) r)
 : tl_seq ps (q ⟶ r) :=
 begin
   intro, apply p_imp_intro_asms_aux _ True,
@@ -552,14 +563,17 @@ end
 
 end lemmas
 
-private meta def mk_type_list : list expr → temporal expr
+private meta def mk_type_list_aux : list expr → temporal expr
  | [] := to_expr ``(list.nil)
  | (x :: xs) :=
-   do es ← mk_type_list xs,
+   do es ← mk_type_list_aux xs,
       `(_ ⊢ %%t) ← infer_type x,
       let n := x.local_pp_name.to_string,
       to_expr ``(list.cons (%%(reflect n), %%t) %%es)
-open list (cons)
+open list (cons reverse)
+
+private meta def mk_type_list : list expr → temporal expr :=
+mk_type_list_aux ∘ reverse
 
 private meta def parse_list : expr → temporal (list (name × expr))
  | `([]) := pure []
@@ -581,10 +595,6 @@ do `(%%Γ ⊢ %%p) ← target,
 
 private meta def exit_list_state : temporal (list expr) :=
 do `(tl_seq %%ps %%g) ← target | return [],
-   tactic.interactive.unfold
-        [ `has_append.append
-        , `list.append] (loc.ns [none]),
-   `(tl_seq %%ps %%g) ← target,
    ps' ← parse_list ps,
    tactic.interactive.unfold
         [ `temporal.tl_seq
@@ -596,9 +606,7 @@ do (Γ,ls,ls') ← enter_list_state,
    tac ls' <* do
       tactic.interactive.unfold
         [ `temporal.with_asms
-        , `temporal.tl_seq
-        , `has_append.append
-        , `list.append] (loc.ns [none]),
+        , `temporal.tl_seq ] (loc.ns [none]),
       tactic.intro_lst ((Γ :: ls).map expr.local_pp_name)
 
 meta def intro_aux (n : option name) : temporal (expr ⊕ name) :=
@@ -1763,6 +1771,15 @@ meta def interactive.guard_target
      (e : parse texpr) : temporal unit :=
 do `(_ ⊢ %%t) ← target,
    e ← to_expr e,
+   guard (t =ₐ e)
+
+meta def interactive.guard_hyp
+     (n : parse $ ident <* tk ":=")
+     (e : parse texpr) : temporal unit :=
+do h ← get_local n,
+   e ← to_expr e,
+   t ← infer_type h,
+   `(_ ⊢ %%t) ← pure t | guard (t =ₐ e),
    guard (t =ₐ e)
 
 meta def interactive.iterate

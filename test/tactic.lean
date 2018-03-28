@@ -106,3 +106,17 @@ begin [temporal]
 -- ⊢ even ! x ≡ even ! y
   { assumption },
 end
+
+variables p q r : cpred
+
+example (hp : Γ ⊢ p) (hq : Γ ⊢ q)
+: Γ ⊢ p ⋀ q ⟶ q ⋀ r ⟶ r :=
+begin [temporal]
+  intros hpq hqr,
+  guard_hyp hp := p,
+  guard_hyp hq := q,
+  guard_hyp hpq := p ⋀ q,
+  guard_hyp hqr := q ⋀ r,
+  guard_target r,
+  tauto,
+end
