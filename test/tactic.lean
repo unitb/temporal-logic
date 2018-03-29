@@ -84,7 +84,7 @@ begin [temporal]
 -- h₀ : ⊙x ≃ succ ! succ ! x,
 -- h₃ : even ! x ≡ even ! y
 -- ⊢ ⊙(even ! x ≡ even ! y)
-    explicit'
+    explicit' with h₀ h₁ h₃
 -- x x' y y' : ℕ,
 -- h₃ : nat.even x ↔ nat.even y,
 -- h₀ : x' = nat.succ (nat.succ x),
