@@ -189,21 +189,22 @@ lemma Wf_def' (σ : ℕ) (w)
                A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2) :=
 by repeat { unfold_coes <|> simp [Wf,Wf_f] }
 
+
 @[simp,predicate]
-lemma Wf_def (σ : ℕ) (w) (a b)
-: (a,b) = σ ⊨ Wf ⦃sch_a,w⦄ ↔
+lemma Wf_def (σ : ℕ) (sch_a w) (a b)
+: (a,b) = (σ ⊨ Wf) (sch_a,w) ↔
   a = (ε w' : _ × α,
          (succ σ ⊨ o,w'.2,succ σ ⊨ v) ⊨ J ∧
                ref w'.1 (σ ⊨ sch_c) ∧
-               (σ ⊨ o,σ ⊨ w) ⊨ cs₀ w'.1 ∧
-               (σ ⊨ o,σ ⊨ w) ⊨ fs₀ w'.1 ∧
-               A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2)).1 ∧
+               (σ ⊨ o,w) ⊨ cs₀ w'.1 ∧
+               (σ ⊨ o,w) ⊨ fs₀ w'.1 ∧
+               A w'.1 (σ ⊨ o,w) (succ σ ⊨ o,w'.2)).1 ∧
   b = (ε w' : aevt × α,
          (succ σ ⊨ o,w'.2,succ σ ⊨ v) ⊨ J ∧
                ref w'.1 (σ ⊨ sch_c) ∧
-               (σ ⊨ o,σ ⊨ w) ⊨ cs₀ w'.1 ∧
-               (σ ⊨ o,σ ⊨ w) ⊨ fs₀ w'.1 ∧
-               A w'.1 (σ ⊨ o,σ ⊨ w) (succ σ ⊨ o,w'.2)).2 :=
+               (σ ⊨ o,w) ⊨ cs₀ w'.1 ∧
+               (σ ⊨ o,w) ⊨ fs₀ w'.1 ∧
+               A w'.1 (σ ⊨ o,w) (succ σ ⊨ o,w'.2)).2 :=
 by repeat { unfold_coes <|> simp [Wf,Wf_f,ext] }
 
 variable valid_witness
@@ -286,6 +287,7 @@ begin [temporal]
   { select H₀ : ◻p_exists _,
     henceforth! at h₀_1 H₀ ⊢,
     explicit'
+      with H₀ h₀_1 SIM evt_Jₐ
     { intros h hJₐ,
       casesm* [_ ∧ _,Exists _],
       have : (o', w', v') ⊨ J ∧
@@ -297,11 +299,11 @@ begin [temporal]
         apply SIM ; solve_by_elim },
       split, tauto,
       casesm* _ ∧ _,
-      apply evt_Jₐ ; apply hJₐ <|> solve_by_elim }, },
+      apply evt_Jₐ ; apply hJₐ <|> solve_by_elim } },
   { select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select Hq : q ! _,
     clear_except Hw SIM₀ Hq init_Jₐ,
-    explicit'
+    explicit' with Hw SIM₀ Hq init_Jₐ
     { cases Hw, subst w, apply_epsilon_spec,
       simp, tauto, } },
 end
@@ -332,7 +334,7 @@ begin [temporal]
     henceforth at hJ,
     select Hw : _ ≃ temporal.many_to_many.Wx₀,
     select h' : q ! _,
-    explicit'
+    explicit' with Hw h'
     { cases Hw, subst w,
       apply_epsilon_spec,
       simp, solve_by_elim, } },
@@ -340,7 +342,7 @@ begin [temporal]
     select h : ◻(_ ≃ _),
     select h' : ◻(p_exists _),
     henceforth! at h h' ⊢ hJ hJₐ,
-    explicit'
+    explicit' with h h' hJ hJₐ
     { cases h, subst w', subst sch_a',
       casesm* [_ ∧ _,Exists _],
       subst h'_w,
@@ -382,7 +384,7 @@ begin [temporal]
   cases H with H H₀,
   cases H with H₁ H₂,
   henceforth! at Hw ⊢ hJ hJₐ H₂,
-  explicit'
+  explicit' with Hw hJ hJₐ H₂
   { cases Hw, subst sch_a', casesm* [_∧_,Exists _],
     subst sch_c, apply_epsilon_spec,
     simp, solve_by_elim, },
@@ -405,7 +407,7 @@ begin [temporal]
   cases H with H₁ H₂,
   clear_except hJ hJₐ SIM h₁ H₂,
   henceforth! at *,
-  explicit'
+  explicit' with hJ hJₐ SIM h₁ H₂
   { intros, cases h₁, subst w', subst sch_c,
     subst sch_a', substs e',
     casesm* [_ ∧ _, Exists _], subst e,
@@ -456,7 +458,7 @@ begin
     clear_except this SIM₀ SIM Hw hJ H₂,
     simp [Wtn] at Hw, cases Hw with Hw' Hw,
     henceforth! at ⊢ this Hw hJ H₂,
-    explicit'
+    explicit' with this Hw hJ H₂
     { intros, cases Hw, simp only [ce'._match_2,ce'._match_1] at *,
       casesm* [_ ∧ _, Exists _],
       apply this _ _ ; tauto <|> cc, },
@@ -509,7 +511,7 @@ begin [temporal]
     simp [Wtn,SPEC₂] at Hw,
     casesm _ ⋀ _,
     select Hw : (_ ≃ temporal.many_to_many.Wx₀),
-    explicit'
+    explicit'  with Hw
     { intro, cases Hw,
       subst w, apply_epsilon_spec,
       simp, solve_by_elim, }, },
@@ -523,7 +525,7 @@ begin [temporal]
     simp, intros ce h₀ h₁ h₂ h₃,
     select Hw : ◻(_ ≃ _),
     henceforth at Hw hJ hJₐ,
-    explicit'
+    explicit' with h₀ h₁ h₂ h₃ hJ hJₐ Hw
     { cases Hw, subst w', subst ce,
       apply_epsilon_spec,
       simp, apply SIM ; clear SIM,

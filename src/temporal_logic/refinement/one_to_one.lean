@@ -177,7 +177,7 @@ begin [temporal]
   select h : ◻p_exists _,
   henceforth! at h ⊢,
   cases h with e h,
-  explicit' [Next_c,sched]
+  explicit' [Next_c,sched] with h
   { casesm* _ ∧ _, subst e, tauto, }
 end
 
@@ -244,6 +244,7 @@ begin [temporal]
     select h' : ◻(p_exists _),
     henceforth! at h h' ⊢ hJ hJ',
     explicit' [Wf,Wf_f,J',JJₐ]
+      with  h h' hJ hJ'
     { simp [Next_a,on_fun] at h h',
       casesm* [_ ∧ _,Exists _],
       subst w', subst h'_w,
@@ -299,7 +300,7 @@ begin [temporal]
     apply this _,
     simp [Next_c],
     suffices : ⟦ ⦃o,sch⦄,v | λ (σ σ' : (γ × evt) × β), (σ.fst).snd = e ∧ (C e on map_left fst) σ σ' ⟧,
-    { explicit' { cc, }, },
+    { explicit' with h₀ h₁ h₂ h₃ { cc, }, },
     rw [← action_and_action,← init_eq_action,action_on'], split,
     explicit
     { simp at ⊢ h₀, assumption },
@@ -312,8 +313,8 @@ begin [temporal]
     henceforth at H' ⊢, cases H' with i H',
     simp [Next_c],
     suffices : ⟦ ⦃o,sch⦄,v | λ (σ σ' : (γ × evt) × β), (σ.fst).snd = i ∧ (C i on map_left fst) σ σ' ⟧,
-    { explicit' { cases this, subst i, tauto, } },
-    explicit' { cc }, },
+    { explicit'* { cases this, subst i, tauto, } },
+    explicit'* { cc }, },
   { cases_matching* _ ⋀ _, assumption, },
 end
 
@@ -399,15 +400,15 @@ begin [temporal]
     { monotonicity!,
       simp [exists_action],
       intros e h₀ h₁ h₂ h₃, replace this := this _,
-      explicit' [Next_a]
+      explicit'* [Next_a]
       { intros, casesm* _ ∧ _,
         constructor_matching* [Exists _,_ ∧ _] ; solve_by_elim, },
       simp [Next_c],
       suffices : ⟦ ⦃o,sch⦄,v | λ (σ σ' : (γ × evt) × β), map_left prod.fst σ ⊨ fs₁ e ∧ ((λ s s', s = e) on (prod.snd ∘ prod.fst)) σ σ' ∧ (C e on map_left prod.fst) σ σ' ⟧,
-      explicit'
+      explicit' with h₀ h₁ this
       { intros, subst e, tauto, },
       henceforth at this,
-      explicit' [Next_c]
+      explicit'* [Next_c]
       { tauto } },
     { apply temporal.one_to_one.init_Jₐ' },
     { apply temporal.one_to_one.evt_Jₐ' }, },

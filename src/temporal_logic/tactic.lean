@@ -1055,22 +1055,18 @@ meta def subst_state_variables (σ : expr) (p : explicit_opts) : tactic unit :=
 do vs ← list_state_vars `(ℕ),
    let ns := name_set.of_list (vs.map expr.local_uniq_name),
    vs' ← reverting (λ h, do t ← infer_type h, return $ t.has_local_in ns) (do
-   vs.mmap $ λ v, do
-     let n := v.local_pp_name,
-     let n_primed := update_name (λ s, s ++ "'") v.local_pp_name,
-     n' ← mk_fresh_name,
-     v ← rename v.local_pp_name n' >> get_local n',
-     p ← to_expr ``(%%σ ⊨ %%v),
-     try (generalize p n >> tactic.intro1),
-     p' ← to_expr ``(nat.succ %%σ ⊨ %%v),
-     try (generalize p' n_primed >> tactic.intro1),
-     return v),
-   ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
+     vs.mmap $ λ v, do
+       let n := v.local_pp_name,
+       let n_primed := update_name (λ s, s ++ "'") v.local_pp_name,
+       n' ← mk_fresh_name,
+       v ← rename v.local_pp_name n' >> get_local n',
+       p ← to_expr ``(%%σ ⊨ %%v),
+       try (generalize p n >> tactic.intro1),
+       p' ← to_expr ``(nat.succ %%σ ⊨ %%v),
+       try (generalize p' n_primed >> tactic.intro1),
+       return v),
+   -- ls ← local_context >>= mfilter (λ h, do t ← infer_type h, return $ σ.occurs t),
    when p.verbose trace_state,
-   ls.for_each (λ h, do -- trace "deleting",
-                        -- t ← infer_type h >>= pp,
-                        -- trace format!"{h} : {t}",
-                        tactic.clear h),
    tactic.clear σ,
    mmap' tactic.clear vs'.reverse
 
@@ -1078,12 +1074,18 @@ meta def resetI : temporal unit := resetI
 
 open function
 meta def explicit'
+  (keep_all : parse (tk "*")?)
   (rs : parse simp_arg_list)
+  (hs : parse with_ident_list)
   (tac : tactic.interactive.itactic)
   (opt : explicit_opts := {})
 : temporal unit :=
-do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
+do hs ← hs.mmap get_local,
+   `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
    let st := `σ,
+   when keep_all.is_none (do
+     asms ← get_assumptions,
+     (asms.diff hs).mmap' tactic.clear),
    asms ← get_assumptions,
    constructor,
    st ← tactic.intro st,
@@ -1092,13 +1094,16 @@ do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
      e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
      note h.local_pp_name none e,
      tactic.clear h),
-   let rs' := map simp_arg_type.expr
-     [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)
-     ,``(coe),``(lift_t),``(has_lift_t.lift),``(coe_t),``(has_coe_t.coe),``(coe_b),``(has_coe.coe),
-        ``(coe_fn), ``(has_coe_to_fun.coe), ``(coe_sort), ``(has_coe_to_sort.coe)] ++
-     rs,
-   let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
-   tactic.interactive.simp none ff rs' [`predicate,`tl_simp] l { fail_if_unchanged := ff },
+     let rs' := map simp_arg_type.expr
+       [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)
+       ,``(coe),``(lift_t),``(has_lift_t.lift),``(coe_t),``(has_coe_t.coe)
+       ,``(coe_b),``(has_coe.coe)
+       ,``(coe_fn), ``(has_coe_to_fun.coe), ``(coe_sort), ``(has_coe_to_sort.coe)
+       ] ++
+       rs,
+     let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
+     tactic.interactive.simp none ff rs' [`predicate] l
+       { fail_if_unchanged := ff },
    done <|> solve1 (do
      tactic.clear hΓ,
      try (to_expr ``(temporal.persistent %%Γ) >>= mk_instance >>= tactic.clear),

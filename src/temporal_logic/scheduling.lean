@@ -177,10 +177,10 @@ lemma q_injective
 begin [temporal]
   cases Hq with Hq Hq',
   t_induction!,
-  { explicit'
+  { explicit' with Hq
     { cases_matching* _ ∧ _, subst p, solve_by_elim, } },
   { henceforth at Hq',
-    explicit'
+    explicit' with ih Hq'
     { simp_intros e, cases ih e with i h,
       cases Hq' with Hcur' Hq',
       ordering_cases cmp i (↓ i, p i ∈ r'),
@@ -282,7 +282,7 @@ begin [temporal]
   have Hsur := temporal.scheduling.q_injective,
   replace Hr := henceforth_next _ _ Hr,
   henceforth! at Hr Hsur ⊢,
-  explicit'
+  explicit' with Hr Hsur
   { rw not_eq_empty_iff_exists at *,
     cases Hr with i Hr,
     existsi inv p i,
@@ -305,7 +305,7 @@ begin [temporal]
   have Hq_inj' := henceforth_next _ _ Hq_inj,
   t_induction!,
   henceforth! at Hr Hq_inj,
-  { explicit' [select,cur₀]
+  { explicit' [select,cur₀] with Hq₀ Hr Hq_inj
     { change cur ∈ { i | p i ∈ r },
       rw [Hq₀.left,Hq₀.right],
       apply minimum_mem,
@@ -319,7 +319,7 @@ begin [temporal]
       rw [inv_is_right_inverse_of_surjective Hq_inj],
       assumption } },
   henceforth! at Hr Hq_inj' Hq_inj Hq hJ,
-  explicit'
+  explicit' with Hq hJ
   { cases Hq with Hq Hq',
     rw Hq',
     have : cmp cur' cur' = ordering.eq,
@@ -335,7 +335,7 @@ lemma cur_lt_cur'
 begin [temporal]
   cases Hq with Hq₀ Hq,
   henceforth! at Hq ⊢,
-  explicit'
+  explicit' with Hq
   { simp [Hq],
     apply lt_max_of_lt_right,
     apply lt_add_one, }
@@ -359,6 +359,7 @@ lemma non_dec_po
 : Γ ⊢ ⊙(rank e |+| (rank e |-| cur) ≃ ↑q₀) :=
 begin [temporal]
   explicit' [next,next',select,rank]
+    with Hprev this H₂ Hdec Hsurj
   { subst q₀,
     cases this with this this,
     cases lt_or_eq_of_le this,
@@ -397,7 +398,7 @@ lemma subsumes_requested (e : evt)
 begin [temporal]
   have Hr' := temporal.scheduling.sched_inv,
   henceforth! at ⊢ Hr',
-  explicit' [select]
+  explicit' [select] with Hr'
   { split,
     { simp, intros, assumption },
     { intros, cc, } },
@@ -425,7 +426,7 @@ begin [temporal]
     have hJ' := henceforth_next _ _ hJ,
     henceforth at Hinc Hq' H₁ H₂ hJ hJ' p_not_empty p'_not_empty,
     apply temporal.scheduling.non_dec_po _ _ Hprev H₂ Hinc hJ',
-    explicit' [next,next',select,rank]
+    explicit' [next,next',select,rank] with Hq' hJ hJ' H₂
     { cases Hq' with Hcur Hq,
       replace Hq := congr_fun Hq, simp only at Hq,
       rw [or_comm,or_iff_not_imp], intro Hncur,
@@ -440,7 +441,6 @@ begin [temporal]
       apply next_rec _ cur cur' p p' r' Hj Hcur Hq,
       { intros, refl },
       { intros h h',
-        clear H₁ hJ hJ' p_not_empty p'_not_empty,
         rw ← Hq at h', cases H₂.right h', },
       { intros, apply nat.sub_le, } }, },
 end
@@ -458,7 +458,8 @@ begin [temporal]
     simp, intros hreq hq₀,
     apply next_entails_eventually,
     explicit' [select,next,next',rank]
-    { cases Hq with Hq Hq',
+      with Hq hreq hq₀ Hinc  Hq_inj
+    { cases Hq with Hq Hq' Hq_inj,
       replace Hq' := congr_fun Hq', simp at Hq',
       rw ← Hq at Hq',
       let rank := ↓ i, p i = e,
@@ -567,7 +568,7 @@ begin [temporal]
     casesm* _ ⋀ _,
     select Hact : ◻(p_exists _),
     henceforth! at Hact ⊢,
-    explicit' [r]
+    explicit' [r] with Hact
     { simp [and_assoc] at Hact,
       simp [not_eq_empty_iff_exists,Hact], }, },
   have h' := temporal.scheduling.scheduler hr,
@@ -580,7 +581,7 @@ begin [temporal]
     select hJ : ◻(_ ∊ _),
     henceforth! at hJ h' ⊢,
     existsi sch with hh,
-    { explicit' [r]
+    { explicit' [r] with hh hJ h'
       { subst sch, tauto } } },
   { introv, intros h₀ h₁,
     rename a_3 h₂,

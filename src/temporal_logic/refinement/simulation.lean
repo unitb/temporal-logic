@@ -75,6 +75,7 @@ lemma init_in_w
 begin [temporal]
   cases Hw,
   explicit' [Wx₀,Wx₀_f]
+    with a
   { introv Hq, subst w,
     apply_epsilon_spec }
 end
@@ -90,6 +91,7 @@ begin [temporal]
   { select H₀ : ◻action _ _,
     henceforth! at h₀_1 H₀ ⊢,
     explicit' [Wf,Wf_f]
+      with h₀_1 H₀
     { intros h hJₐ,
       casesm* [_ ∧ _,Exists _],
       have : (o', w', v') ⊨ J ∧
@@ -101,8 +103,8 @@ begin [temporal]
       apply evt_Jₐ ; apply hJₐ <|> solve_by_elim }, },
   { select Hw : _ ≃ temporal.simulation.Wx₀,
     select Hq : q ! _,
-    clear_except Hw SIM₀ Hq init_Jₐ,
     explicit' [Wtn,Wx₀,Wx₀_f]
+      with Hw SIM₀ Hq init_Jₐ
     { subst w, apply_epsilon_spec, } },
 end
 
@@ -131,6 +133,7 @@ begin [temporal]
   henceforth! at ⊢ this hJₐ,
   revert this,
   explicit' [Wf,Wf_f]
+    with  hJₐ
   { intros, apply_epsilon_spec, },
 end
 omit Hw

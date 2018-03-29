@@ -120,6 +120,7 @@ begin
     intros _ _ _ h _, henceforth! at *,
     intros, cases h with x h,
     explicit' [C,one_to_one.C',A']
+      with h a_3
     { cc },
   end,
 end
