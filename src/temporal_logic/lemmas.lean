@@ -592,8 +592,6 @@ parameters {α' : Type u}  {β' : Type u₀}
 parameters {Γ : cpred} (V : tvar β') (p q : cpred)
 parameters [has_well_founded β']
 
-def le (x y : β') := x << y ∨ x = y
-
 lemma inf_often_induction'
   (S₀ : Γ ⊢ ∀∀ v : β', ◻( V ≃ v ⟶ ◻(V ≃ v) ⋁ ◇(V ≺≺ v ⋁ q)))
   (P₁ : Γ ⊢ ∀∀ v : β', (p ⋀ V ≃ v) ~> (V ≺≺ v ⋁ q))

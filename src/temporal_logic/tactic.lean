@@ -1092,12 +1092,13 @@ do `(%%Γ ⊢ _) ← target >>= instantiate_mvars,
      e ← to_expr ``(judgement.apply %%h %%st %%hΓ),
      note h.local_pp_name none e,
      tactic.clear h),
-   let rs' := map simp_arg_type.expr [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)] ++ rs,
+   let rs' := map simp_arg_type.expr
+     [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)
+     ,``(coe),``(lift_t),``(has_lift_t.lift),``(coe_t),``(has_coe_t.coe),``(coe_b),``(has_coe.coe),
+        ``(coe_fn), ``(has_coe_to_fun.coe), ``(coe_sort), ``(has_coe_to_sort.coe)] ++
+     rs,
    let l := (loc.ns $ none :: map (some ∘ expr.local_pp_name) asms),
    tactic.interactive.simp none ff rs' [`predicate,`tl_simp] l { fail_if_unchanged := ff },
-   repeat (
-       tactic.interactive.simp none ff rs' [`predicate,`tl_simp] l
-       <|> unfold_coes l),
    done <|> solve1 (do
      tactic.clear hΓ,
      try (to_expr ``(temporal.persistent %%Γ) >>= mk_instance >>= tactic.clear),
