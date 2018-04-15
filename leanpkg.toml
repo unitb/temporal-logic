@@ -1,9 +1,9 @@
 [package]
 name = "temporal-logic"
 version = "0.1"
-lean_version = "master"
+lean_version = "nightly-2018-04-06"
 path = "src"
 
 [dependencies]
-mathlib = {git = "https://github.com/leanprover/mathlib", rev = "4ceb545f7e07431263e1131a9c9524a28de99472"}
-lean-lib = {git = "https://github.com/unitb/lean-lib", rev = "2d5a9210a88e90fa3a4effb93c63b95f273a30e5"}
+mathlib = {git = "https://github.com/leanprover/mathlib", rev = "479a12267bc8a6175f6b4c32e3a8f07d47d9a7ec"}
+lean-lib = {git = "https://github.com/unitb/lean-lib", rev = "48879dde59105ba8437dc9c5c588d1a6f78c6f65"}
