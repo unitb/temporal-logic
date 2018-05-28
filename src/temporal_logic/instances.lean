@@ -11,9 +11,9 @@ instance schedulable_empty : schedulable empty :=
 { f := λ _, 0
 , inj := by { intros _ _, casesm* empty, }  }
 
-instance schedulable_unit : schedulable unit :=
+instance schedulable_unit : schedulable punit :=
 { f := λ _, 0
-, inj := by { intros _ _, casesm* unit, simp }  }
+, inj := by { intros _ _, casesm* punit, simp }  }
 
 instance schedulable_bool : schedulable bool :=
 { f := bool.rec 0 1

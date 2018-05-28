@@ -600,6 +600,5 @@ end
 
 end spec
 end scheduling
-end scheduling
 export scheduling (schedulable sch_intro)
 end temporal

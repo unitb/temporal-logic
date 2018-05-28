@@ -21,7 +21,7 @@ do ns ← attribute.get_instances `simp,
 namespace tactic.interactive
 open lean interactive.types
 open interactive lean.parser tactic
-open list (hiding map) has_map predicate
+open list (hiding map) functor predicate
 local postfix *:9001 := many
 
 meta def TL_unfold (cs : parse ident*) (loc : parse location) : tactic unit :=
@@ -33,9 +33,9 @@ namespace temporal
 
 open predicate nat
 
-universe variables u u₀ u₁ u₂
+universes u u₀ u₁ u₂ u₃
 
-variables {α : Sort u₀} {β : Type u₁} {γ : Sort u₂}
+variables {α : Sort u₀} {β : Sort u₁} {γ : Sort u₂} {φ : Sort u₃}
 
 @[reducible]
 def tvar := var ℕ
@@ -55,6 +55,7 @@ def henceforth (p : cpred) : cpred :=
 def next (p : tvar α) : tvar α :=
 ⟨ λ i, p.apply (i.succ) ⟩
 
+@[lifted_fn, reducible]
 def pair {α β} (x : tvar α) (y : tvar β) : tvar (α × β) :=
 lifted₂ prod.mk x y
 
@@ -77,6 +78,12 @@ def tl_leads_to (p q : cpred) : cpred :=
 
 infix ` ~> `:55 := tl_leads_to
 
+
+def to_fun_var (f : var γ α → var γ β) : var γ (α → β) :=
+⟨ λ i x, (f ↑x).apply i ⟩
+
+def to_fun_var' (f : tvar α → tvar α → tvar β) : tvar (α → α → β) :=
+⟨ λ i x y, (f x y).apply i ⟩
 
 class persistent (p : cpred) : Prop :=
   (is_persistent : ◻p = p)
@@ -404,6 +411,133 @@ begin
   simp [henceforth,not_forall_iff_exists_not,eventually],
 end
 
+@[tl_simp, simp, predicate]
+lemma models_to_fun_var (σ : γ) (x : var γ α → var γ β)
+: σ ⊨ to_fun_var x = λ i, σ ⊨ x i :=
+by { refl }
+
+@[tl_simp, simp, predicate]
+lemma models_to_fun_var' (σ : ℕ) (f : tvar (α → α → β))
+: σ ⊨ to_fun_var' (λ x, var_seq $ var_seq f x) = σ ⊨ f :=
+by { casesm* tvar _, dunfold to_fun_var', simp_coes [var_seq], }
+
+@[tl_simp, simp, predicate, lifted_fn]
+lemma to_fun_var_fn_coe_proj (f : var γ α) (g : var β φ → var β γ) (w : var β φ)
+: to_fun_var (λ w, f ! g w) w = f ! to_fun_var g w :=
+by { funext, lifted_pred, simp!, }
+
+@[tl_simp, simp, predicate, lifted_fn]
+lemma to_fun_var_fn_coe (g : var β (φ → γ)) (w : var β φ)
+: to_fun_var (λ w, g w) w = g w :=
+by { funext, lifted_pred, simp!, }
+
+@[tl_simp, simp, predicate, lifted_fn]
+lemma to_fun_var_fn_coe' (f : tvar (α → α → β)) (w w' : tvar α)
+: ⇑(to_fun_var' $ λ w w', f w w') w w' = f w w' :=
+by { lifted_pred, simp! [to_fun_var'], }
+
+@[lifted_fn]
+lemma to_fun_var_lift₁ (f : φ → β) (g : var γ α → var γ φ) (w : var γ α)
+: (to_fun_var (λ (w : var γ α), lifted₁ f (g w))) w = lifted₁ f (to_fun_var g w) :=
+by { lifted_pred, simp! }
+
+@[lifted_fn]
+lemma to_fun_var_lift₂ {σ} (f : φ → σ → β)
+  (g₀ : var γ α → var γ φ)
+  (g₁ : var γ α → var γ σ) (w : var γ α)
+: (to_fun_var (λ (w : var γ α), lifted₂ f (g₀ w) (g₁ w))) w =
+  lifted₂ f (to_fun_var g₀ w) (to_fun_var g₁ w) :=
+by { lifted_pred, simp }
+
+@[lifted_fn]
+lemma to_fun_var_coe (w : var γ α) (v : var γ β)
+: to_fun_var (λ (w : var γ α), v) w = v :=
+by { lifted_pred, simp }
+
+@[lifted_fn]
+lemma to_fun_var_id (w : var γ α)
+: to_fun_var (λ w : var γ α, w) w = w :=
+by { lifted_pred, simp }
+
+@[lifted_fn]
+lemma to_fun_var'_fn_coe (f : var φ β) (g : tvar α → tvar α → tvar φ) (w w' : tvar α)
+: (to_fun_var' (λ (w w' : tvar α), f ! g w w')) w w' = f ! to_fun_var' g w w'  :=
+by { lifted_pred, simp! [to_fun_var'], }
+
+@[lifted_fn]
+lemma to_fun_var'_coe (w w' : tvar α) (v : tvar β)
+: (to_fun_var' (λ (w w' : tvar α), v)) w w' = v :=
+by { lifted_pred, simp! [to_fun_var'], }
+
+@[lifted_fn]
+lemma to_fun_var'_id (w w' : tvar α)
+: to_fun_var' (λ w w' : tvar α, w) w w' = w :=
+by { lifted_pred, simp! [to_fun_var',next], }
+
+@[lifted_fn]
+lemma to_fun_var'_id' (w w' : tvar α)
+: to_fun_var' (λ w w' : tvar α, w') w w' = w' :=
+by { lifted_pred, simp! [to_fun_var'], }
+
+@[lifted_fn]
+lemma to_fun_var'_lift₂ {σ} (f : φ → σ → β)
+  (g₀ : tvar α → tvar α → tvar φ)
+  (g₁ : tvar α → tvar α → tvar σ) (w w' : tvar α)
+: to_fun_var' (λ (w w' : tvar α), lifted₂ f (g₀ w w') (g₁ w w')) w w' =
+  lifted₂ f (to_fun_var' g₀ w w') (to_fun_var' g₁ w w') :=
+by { lifted_pred, simp! [to_fun_var'], }
+
+@[tl_simp, simp, predicate]
+lemma models_coe (σ : α) (x : β)
+: σ ⊨ ↑x = x :=
+by { refl }
+
+@[tl_simp, simp, predicate]
+lemma models_action (A : act α) (v : tvar α) (i : ℕ)
+: i ⊨ ⟦ v | A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
+by { refl }
+
+@[tl_simp, simp, predicate]
+lemma models_next (p : tvar α) (t : ℕ)
+: t ⊨ ⊙p = succ t ⊨ p :=
+by refl
+
+lemma induct' (p : cpred) {Γ}
+  (h : Γ ⊢ ◻ (p ⟶ ⊙p))
+: Γ ⊢ ◻ (p ⟶ ◻p) :=
+begin
+  constructor,
+  intros τ hΓ k hp i,
+  induction i with i,
+  assumption,
+  have := h.apply τ hΓ (k+i) (cast (by simp) i_ih),
+  simp [next] at this,
+  simp [add_succ,this],
+end
+
+lemma induct (p : cpred) {Γ}
+  (h : Γ ⊢ ◻ (p ⟶ ⊙p))
+: Γ ⊢ p ⟶ ◻p :=
+henceforth_str (p ⟶ ◻p) Γ (induct' _ h)
+
+lemma induct_evt' (p q : cpred) {Γ}
+  (h : Γ ⊢ ◻ (p ⟶ -q ⟶ ⊙p ⋁ ⊙q))
+: Γ ⊢ ◻ (p ⟶ ◇q ⋁ ◻p) :=
+begin
+  lifted_pred using h,
+  simp only [henceforth] with tl_simp at *,
+  intros,
+  simp [or_iff_not_imp,eventually],
+  intros hnq k,
+  induction k with k,
+  { simp [a] },
+  { simp [add_succ],
+    specialize h _ k_ih (hnq _),
+    rw [or_comm,or_iff_not_imp] at h,
+    apply h, rw [← add_succ,← add_succ],
+    apply hnq }
+end
+
 lemma eventually_exists (P : α → cpred)
 : ◇(∃∃ x, P x) = ∃∃ x, ◇P x :=
 begin
@@ -438,7 +572,7 @@ private def w : ℕ → α
  | 0 := i ⊨ x₀
  | (succ j) := (i + j ⊨ f) (w j)
 
-lemma witness
+lemma fwd_witness
 : ⊩ ∃∃ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) :=
 begin
   lifted_pred,
@@ -450,5 +584,27 @@ begin
 end
 
 end witness
+
+def nelist (α : Type*) := { xs : list α // xs.empty = ff }
+
+def nelist.head {α : Type*} : nelist α → α
+ | ⟨ x::xs, _ ⟩ := x
+
+def nelist.tail {α : Type*} : nelist α → option (nelist α)
+ | ⟨ x::x'::xs, _ ⟩ := some ⟨ x'::xs, rfl ⟩
+ | ⟨ _ :: [], _ ⟩ := none
+
+def nelist.uncons {α : Type*} : nelist α → α ⊕ (α × nelist α)
+ | ⟨ x::x'::xs, _ ⟩ := sum.inr (x,⟨x'::xs,rfl⟩)
+ | ⟨ x :: [], _ ⟩ := sum.inl x
+
+def nelist.single {α : Type*} : α → nelist α
+ | x := ⟨ x :: [] ,rfl ⟩
+
+def nelist.cons {α : Type*} : α → nelist α → nelist α
+ | x ⟨ xs, _⟩ := ⟨ x::xs,rfl ⟩
+
+noncomputable def epsilon [nonempty α] (p : tvar (α → Prop)) : tvar α :=
+⟨ λ i, classical.epsilon $ i ⊨ p ⟩
 
 end temporal

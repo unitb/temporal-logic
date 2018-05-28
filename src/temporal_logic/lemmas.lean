@@ -131,16 +131,6 @@ lemma const_action (c : Prop) (v : tvar α)
 : ⟦ v | λ _ _ : α, c ⟧ = (c : cpred) :=
 by { refl }
 
-@[tl_simp, simp, predicate]
-lemma models_coe (σ : α) (x : β)
-: σ ⊨ ↑x = x :=
-by { refl }
-
-@[tl_simp, simp, predicate]
-lemma models_action (A : act α) (v : tvar α) (i : ℕ)
-: i ⊨ ⟦ v | A ⟧ ↔ A (i ⊨ v) (succ i ⊨ v) :=
-by { refl }
-
 -- @[predicate]
 lemma action_on  (A : act α) (v : tvar γ) (f : γ → α)
 : ⟦ v | A on f ⟧ = ⟦ ⟨f⟩ ! v | A ⟧ :=
@@ -154,24 +144,6 @@ by { lifted_pred }
 lemma exists_action  (A : γ → act α) (v : tvar α)
 : (∃∃ i, ⟦ v | A i ⟧) = ⟦ v | λ s s', (∃ i, A i s s') ⟧ :=
 by { lifted_pred }
-
-@[tl_simp, simp, predicate]
-lemma models_next (p : tvar α) (t : ℕ)
-: t ⊨ ⊙p = succ t ⊨ p :=
-by refl
-
-lemma induct (p Γ : cpred)
-  (h : Γ ⊢ ◻ (p ⟶ ⊙p))
-: Γ ⊢ (p ⟶ ◻p) :=
-begin
-  constructor,
-  intros τ hΓ hp i,
-  induction i with i,
-  assumption,
-  have := h.apply τ hΓ i i_ih,
-  simp [next] at this,
-  simp [this],
-end
 
 instance or_persistent {p q : cpred}
   [persistent p]
@@ -226,32 +198,6 @@ begin
   constructor,
   rw ← p_not_eq_p_not_iff_eq,
   simp only [is_persistent] with tl_simp,
-end
-
-lemma induct' (p : cpred) {Γ}
-  (h : Γ ⊢ ◻ (p ⟶ ⊙p))
-: Γ ⊢ ◻ (p ⟶ ◻p) :=
-begin [temporal]
-  henceforth,
-  apply induct _ _ h,
-end
-
-lemma induct_evt' (p q : cpred) {Γ}
-  (h : Γ ⊢ ◻ (p ⟶ -q ⟶ ⊙(p ⋁ q)))
-: Γ ⊢ ◻ (p ⟶ ◇q ⋁ ◻p) :=
-begin
-  lifted_pred using h,
-  simp only [henceforth] with tl_simp at *,
-  intros,
-  simp [or_iff_not_imp,eventually],
-  intros hnq k,
-  induction k with k,
-  { simp [a] },
-  { simp [add_succ],
-    specialize h _ k_ih (hnq _),
-    rw [or_comm,or_iff_not_imp] at h,
-    apply h, rw [← add_succ,← add_succ],
-    apply hnq }
 end
 
 lemma induct_evt (p q : cpred) {Γ}

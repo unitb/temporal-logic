@@ -25,6 +25,15 @@ instance persistent_sched : persistent (sched p q A) :=
 by { unfold sched, apply_instance }
 
 end defs
+
+lemma sched_imp_sched {Γ p q A A' : cpred}
+  (hA : Γ ⊢ ◻(A ⟶ A'))
+: Γ ⊢ sched p q A ⟶ sched p q A' :=
+begin [temporal]
+  simp [sched],
+  monotonicity, apply hA,
+end
+
 -- TODO(Simon) replace ~> with ◻◇_ ⟶ ◻◇_
 
 structure one_to_one_po (S p q A p' q' A' : cpred) : Prop :=
