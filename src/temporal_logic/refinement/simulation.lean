@@ -15,7 +15,6 @@ parameters {α : Type u} {β : Type u₀} {γ : Type u₁ }
 parameters (p : pred' (γ×α)) (q : pred' (γ×β))
 parameters (A : act (γ×α)) (C : act (γ×β))
 parameters (J : pred' (γ×α×β))
-parameters (Jₐ : pred' (γ×α))
 
 variables (x : tvar α) (y : tvar β) (z : tvar γ)
 
@@ -27,18 +26,11 @@ def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
 q ! ⦃ o,v ⦄ ⋀
 ◻⟦ o,v | C ⟧
 
-parameters [inhabited α]
-parameter init_Jₐ : ∀ w o, (o,w) ⊨ p → (o,w) ⊨ Jₐ
-parameter evt_Jₐ  : ∀ w o w' o',
-                          (o,w) ⊨ Jₐ →
-                          A (o,w) (o',w') →
-                          (o',w') ⊨ Jₐ
-
+-- parameters [inhabited α]
 parameter SIM₀ : ∀ v o, (o,v) ⊨ q → ∃ w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
 parameter SIM
 : ∀ w v o v' o',
   (o,w,v) ⊨ J →
-  (o,w) ⊨ Jₐ →
   C (o,v) (o',v') →
   ∃ w', A (o,w) (o',w') ∧
         (o',w',v') ⊨ J
@@ -48,117 +40,55 @@ parameters (v : tvar β) (o : tvar γ)
 parameters Γ : cpred
 parameters H : Γ ⊢ SPEC₁ v o
 
-noncomputable def Wx₀_f : tvar (β → γ → α) :=
-λ v o, ε w, (o,w) ⊨ p ∧ (o,w,v) ⊨ J
+def Wx₀ : tvar (α → Prop) :=
+[| o, λ w, (o,w) ⊨ p |]
 
-noncomputable def Wx₀ : tvar α :=
-Wx₀_f v o
+def Wf : tvar (α → α → Prop) :=
+⟪ ℕ, λ o o' w w', A (o,w) (o',w') ⟫ o (⊙o)
 
-noncomputable def Wf_f : tvar (β → γ → γ → α → α) :=
-λ v' o o' w, ε w', A (o,w) (o',w') ∧
-                   (o',w',v') ⊨ J
-
-noncomputable def Wf : tvar (α → α) :=
-Wf_f (⊙v) o (⊙o)
-
-noncomputable def Wtn (w : tvar α) :=
-w ≃ Wx₀ ⋀ ◻(⊙w ≃ Wf w)
+def Wtn (w : tvar α) :=
+Wx₀ w ⋀ ◻(Wf w ⊙w)
 
 include SIM₀
 
 variables w : tvar α
-variables Hw : Γ ⊢ Wtn w
-include Hw
+-- variables Hw : Γ ⊢ Wtn w
+-- include Hw
 
-lemma init_in_w
-: Γ ⊢ q!⦃o,v⦄ ⟶ p!⦃o,w⦄ :=
-begin [temporal]
-  cases Hw,
-  explicit' [Wx₀,Wx₀_f]
-    with a
-  { introv Hq, subst w,
-    apply_epsilon_spec }
-end
+include H SIM
+-- omit Hw
 
-include H SIM init_Jₐ evt_Jₐ
-lemma J_inv_in_w'
-: Γ ⊢ ◻(J ! ⦃o,w,v⦄ ⋀ Jₐ ! ⦃o,w⦄) :=
-begin [temporal]
-  simp [Wtn,SPEC₁] at Hw H,
-  cases Hw with h₀ h₀,
-  casesm* _ ⋀ _,
-  apply induct _ _ _ _,
-  { select H₀ : ◻action _ _,
-    henceforth! at h₀_1 H₀ ⊢,
-    explicit' [Wf,Wf_f]
-      with h₀_1 H₀
-    { intros h hJₐ,
-      casesm* [_ ∧ _,Exists _],
-      have : (o', w', v') ⊨ J ∧
-             A (o, w) (o', w'),
-      { subst w',
-        apply_epsilon_spec, },
-      split, tauto,
-      casesm* _ ∧ _,
-      apply evt_Jₐ ; apply hJₐ <|> solve_by_elim }, },
-  { select Hw : _ ≃ temporal.simulation.Wx₀,
-    select Hq : q ! _,
-    explicit' [Wtn,Wx₀,Wx₀_f]
-      with Hw SIM₀ Hq init_Jₐ
-    { subst w, apply_epsilon_spec, } },
-end
+#check to_fun_var
+#check to_fun_var'
 
-lemma J_inv_in_w
-: Γ ⊢ ◻(J ! ⦃o,w,v⦄) :=
-begin [temporal]
-  cases temporal.simulation.J_inv_in_w' _ Hw,
-  assumption
-end
-
-lemma abs_J_inv_in_w
-: Γ ⊢ ◻(Jₐ ! ⦃o,w⦄) :=
-begin [temporal]
-  cases temporal.simulation.J_inv_in_w' _ Hw,
-  assumption
-end
-
-lemma C_imp_A_in_w
-: Γ ⊢ ◻(⟦ o,v | C ⟧ ⟶ ⟦ o,w | A ⟧) :=
-begin [temporal]
-  have := temporal.simulation.J_inv_in_w _ Hw,
-  have hJₐ := temporal.simulation.abs_J_inv_in_w _ Hw,
-  simp [action_eq],
-  rw [Hw.right],
-  clear H Hw,
-  henceforth! at ⊢ this hJₐ,
-  revert this,
-  explicit' [Wf,Wf_f]
-    with  hJₐ
-  { intros, apply_epsilon_spec, },
-end
-omit Hw
 lemma simulation
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  select_witness w : temporal.simulation.Wtn w with Hw,
-  have := H, revert this,
-  simp only [SPEC₀,SPEC₁],
+  cases H with H₀ Hnext,
+  -- ⊢ ⇑(⇑(to_fun_var' (λ (w w_1 : tvar α), ⇑(⇑Wf w) w_1)) w) w' = ⇑(⇑Wf w) w'
+  select_witness w : temporal.simulation.Wtn w
+    with Hw hJ
+    using J!⦃o,w,v⦄,
+  explicit' [Wx₀] with H₀
+  { solve_by_elim },
+  -- intros,
+  explicit' [Wf] with Hnext
+  { intros, apply SIM ; assumption, },
+  existsi w, revert Hw,
+  simp only [SPEC₀,SPEC₁,Wtn],
   apply ctx_p_and_p_imp_p_and',
-  { apply temporal.simulation.init_in_w _ Hw },
-  { -- type_check_result "foo",
-    replace Hw := temporal.simulation.C_imp_A_in_w _ Hw ,
-    monotonicity!,
-    apply Hw, },
+  explicit' [Wx₀] {  },
+  monotonicity!,
+  explicit' [Wf] {  },
 end
 
--- omit  init_Jₐ evt_Jₐ
 omit H
 lemma simulation'
 : (∃∃ c, SPEC₁ c o) ⟹ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   rw p_exists_p_imp,
   intros x h,
-  apply simulation p q A C J Jₐ init_Jₐ evt_Jₐ SIM₀ @SIM _ _ _ h ,
+  apply simulation p q A C J SIM₀ @SIM _ _ _ h ,
 end
 
 end
@@ -178,16 +108,16 @@ parameters FIS₀ : ∃ σ, σ ⊨ p
 parameters FIS : ∀ σ, σ ⊨ J → ∃ σ', A σ σ'
 parameters INV : ∀ σ σ', σ ⊨ J → A σ σ' → σ' ⊨ J
 
-open classical simulation
+open classical simulation function
 
 include H₀ INV
 
 def A' : act $ unit × plift α :=
 A on (plift.down ∘ prod.snd)
 
-parameters [_inst : inhabited α]
+-- parameters [_inst : inhabited α]
 
-include FIS₀ FIS _inst
+include FIS₀ FIS
 lemma witness_construction
 : ⊩ ∃∃ v, p ! v ⋀ ◻⟦ v | A ⟧ :=
 begin
@@ -196,9 +126,10 @@ begin
   let C : unit × unit → unit × unit → Prop := λ _ _, true,
   let prj : var (unit × plift α) α := ⟨plift.down⟩ ! pair.snd,
   let p' : pred' (unit × plift α) := p ! prj,
-  have _inst : inhabited (plift α) := ⟨ plift.up (default α) ⟩,
+  -- cases FIS₀ with w Hw,
+  -- have _inst : inhabited (plift α) := ⟨ plift.up w ⟩,
   let J' : pred' (unit × plift α × unit) := J ! ⟨plift.down⟩ ! pair.fst ! pair.snd,
-  have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ _ _ o o Γ _,
+  have := @simulation _ _ _ p' (@True $ unit × unit) (A' H₀ INV) C J' _ _ o o Γ _,
   -- ; try { auto },
   -- have := @simulation _ _ _ _ (@True $ unit × unit) (A' H₀ INV) C J' True _inst _ _ o o Γ _,
   begin [temporal]
@@ -211,17 +142,15 @@ begin
     monotonicity, rw [action_on,coe_over_comp,proj_assoc,pair.snd_mk'],
     refl,
   end,
-  { simp },
-  { intros, simp, },
   { intros,
-    revert FIS₀,
+    apply exists_imp_exists' plift.up _ FIS₀,
+    introv Hw, split, simp [p',Hw],
+    simp [J'], apply ew_str H₀ _ Hw, },
+  { introv hJ hC, simp [J'] at hJ,
+    -- existsi w,
+    have := FIS _ hJ, revert this,
     apply exists_imp_exists' plift.up,
-    introv h, split, simp [p',h],
-    simp [J'], apply ew_str H₀ _ h, },
-  { introv hJ hJ' hC, simp [J'] at hJ,
-    have := FIS (w.down) hJ, revert this,
-    apply exists_imp_exists' plift.up,
-    introv hA, simp [A'], split,
+    simp [A',function.comp,on_fun], introv hA, split,
     { apply hA },
     { apply INV _ _ hJ hA  } },
   { simp only [SPEC₁,C] with tl_simp, }

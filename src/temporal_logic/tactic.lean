@@ -1,9 +1,10 @@
 
+import util.classical
 import util.predicate
 import util.data.option
 import util.control.applicative
 import util.meta.tactic
-import meta.expr
+import tactic.basic
 
 import tactic
 import tactic.find
@@ -1494,6 +1495,12 @@ meta def unfold_coes (ids : parse ident *) (l : parse location) (cfg : unfold_co
 tactic.interactive.unfold_coes l >>
 tactic.interactive.unfold ids l cfg
 
+meta def unfold :=
+tactic.interactive.unfold
+
+meta def dunfold :=
+tactic.interactive.dunfold
+
 meta def dsimp :=
 tactic.interactive.dsimp
 
@@ -1744,9 +1751,7 @@ begin [temporal]
   assumption
 end
 
-variable (HN' : tvar α → tvar α → cpred)
-
-#check to_fun_var (to_fun_var ∘ HN')
+-- variable (HN' : tvar α → tvar α → cpred)
 
 lemma witness_elim' {P : cpred}
   (J' : tvar α → cpred)
@@ -1754,7 +1759,7 @@ lemma witness_elim' {P : cpred}
   (HN' : tvar α → tvar α → cpred)
   (hJ : ∀ w, J w = J' w)
   (hHI : ∀ w, HI w = HI' w)
-  (hHN : ∀ w w', HN w w' = HN' w w')
+  (hHN : ∀ w, HN w (⊙w) = HN' w (⊙w))
   (h : Γ ⊢ ∀∀ w, HI' w ⋀ ◻HN' w (⊙w) ⟶ ◻J' w ⟶ P)
 : Γ ⊢ P :=
 begin [temporal]
@@ -1827,11 +1832,19 @@ do t ← infer_type p,
 -- e' ← kabstract (e'.instantiate_var v') p',
 -- trace $ e'.instantiate_var v
 
+meta def brack_expr : lean.parser (name ⊕ pexpr) :=
+sum.inl <$> ident <|> sum.inr <$> brackets "(" ")" texpr
+
+/-- select_witness w : P w
+      with h₀ h₁
+      using inv
+ -/
 meta def select_witness
   (w : parse $ ident_ <* tk ":")
   (p : parse texpr)
   (asm : parse $ (tk "with" *> prod.mk <$> ident <*> ident?)?)
-  (inv : parse (tk "using" *> texpr)?)
+  (inv : parse $ (tk "using" *> brack_expr) <|> pure (sum.inr ``(True)))
+  (tac : tactic.interactive.itactic)
 : temporal unit :=
 do `(%%Γ ⊢ %%q) ← target,
    u ← mk_meta_univ,
@@ -1849,8 +1862,8 @@ do `(%%Γ ⊢ %%q) ← target,
      -- refine ``(to_fun_var _),
      tactic.intro w,
      match inv with
-      | (some inv) := to_expr inv
-      | none := to_expr ``(True)
+      | (sum.inr inv) := to_expr inv
+      | (sum.inl n) := resolve_name n >>= to_expr
      end  >>= tactic.exact ),
    v ← mk_local_def w u,
    p' ← head_beta (p v),
@@ -1868,29 +1881,34 @@ do `(%%Γ ⊢ %%q) ← target,
      mv ← lam_kabstract mv nx_v v.local_pp_name,
      return (init.lambdas [v], mv.lambdas [v]) ),
    new_g ← to_expr ``(%%p' ⟶ ◻%%J' ⟶ %%q),
-   new_g ← to_expr ``(%%Γ ⊢ p_forall %%(new_g.lambdas [v])),
-   h ← mk_meta_var new_g,
+   new_g ← to_expr ``(%%Γ ⊢ p_forall %%(new_g.lambdas [v])) >>= mk_meta_var,
    h₀ ← mk_mvar,h₁ ← mk_mvar,h₂ ← mk_mvar,h₃ ← mk_mvar,h₄ ← mk_mvar,
    let (asm₀,asm₁) := asm.get_or_else (`_,`_),
    let asm₁ := asm₁.get_or_else `_,
    -- tactic.swap,
    focus1 $ do
-     refine  ``(temporal.interactive.witness_elim' (to_fun_var %%J) (to_fun_var %%HI) (to_fun_var' %%HN) %%h₀ %%h₁ %%J %%HI %%HN %%h₂ %%h₃ %%h₄ %%h),
+       -- (hJ : ∀ w, J w = J' w)
+       -- (hHI : ∀ w, HI w = HI' w)
+       -- (hHN : ∀ w w', HN w w' = HN' w w')
+       -- (h : Γ ⊢ ∀∀ w, HI' w ⋀ ◻HN' w (⊙w) ⟶ ◻J' w ⟶ P)
+
+     refine  ``(temporal.interactive.witness_elim'
+               (to_fun_var %%J) (to_fun_var %%HI) (to_fun_var' %%HN)
+               -- %%h₀ %%h₁ %%J %%HI %%h₂ %%h₃ %%new_g),
+               %%h₀ %%h₁ %%J %%HI %%HN %%h₂ %%h₃ %%h₄ %%new_g),
      set_goals [h₁],
      henceforth (some ()) loc.wildcard <|> fail "foo",
      h₁::_ ← get_goals,
-     set_goals [h],
+     set_goals [new_g],
      temporal.interactive.intros [w,asm₀,asm₁],
-     h::_ ← get_goals,
-     set_goals [h₂],
-     solve1 `[intros, simp! with lifted_fn],
-     set_goals [h₃],
-     solve1 `[intros, simp! with lifted_fn],
-     set_goals [h₄],
-     solve1 `[intros, simp! with lifted_fn],
-     set_goals [h₀,h₁,h]
+     new_g::_ ← get_goals,
+     hs ← [h₂,h₃,h₄].mmap (λ h, do
+       set_goals [h],
+       focus1 `[intros, simp! only with lifted_fn],
+       get_goals ),
+     set_goals hs.join >> tac >> done,
+     set_goals [new_g]
 
-#check to_fun_var
 #check witness_elim'
 
 end interactive
@@ -2035,6 +2053,10 @@ do h ← mk_fresh_name,
 
 meta def interactive.«suffices» (h : parse ident?) (t : parse (tk ":" *> texpr)?) : tactic unit :=
 interactive.«have» h t none >> tactic.swap
+
+meta def interactive.congr := tactic.interactive.congr
+
+meta def interactive.ext := tactic.interactive.ext
 
 run_cmd do
   let ls := [`monotonicity,`monotonicity1,`persistently],

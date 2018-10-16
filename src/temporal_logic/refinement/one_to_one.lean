@@ -15,9 +15,17 @@ section
 open fairness
 parameters {α : Type u} {β : Type u₀} {γ : Type u₁ }
 parameters {evt : Type u₂}
-parameters {p : pred' (γ×α)} {q : pred' (γ×β)}
-parameters (A : evt → act (γ×α)) (C : evt → act (γ×β))
-parameters {cs₀ fs₀ : evt → pred' (γ×α)} {cs₁ fs₁ : evt → pred' (γ×β)}
+parameters {m₀ : mch' evt (γ×α)} {m₁ : mch' evt (γ×β)}
+local notation `p` := m₀.init
+local notation `q` := m₁.init
+local notation `aevt` := m₀.evt
+local notation `cevt` := m₁.evt
+local notation `cs₀` := m₀.cs
+local notation `fs₀` := m₀.fs
+local notation `cs₁` := m₁.cs
+local notation `fs₁` := m₁.fs
+local notation `A` := m₀.A
+local notation `C` := m₁.A
 parameters (J : pred' (γ×α×β))
 parameters (Jₐ : pred' (γ×α))
 
@@ -29,20 +37,19 @@ abbreviation ce (i : evt) : event (evt×γ×β) := ⟨cs₁ i!pair.snd,fs₁ i!p
 
 section specs
 
-parameters p q cs₀ fs₀ cs₁ fs₁
-
+parameters m₀ m₁
 
 def SPEC₀.saf' (v : tvar α) (o : tvar γ) (sch : tvar evt) : cpred :=
-spec_saf_spec p cs₀ fs₀ A ⦃o,v⦄ sch
+spec_saf_spec m₀ ⦃o,v⦄ sch
 
 def SPEC₀ (v : tvar α) (o : tvar γ) : cpred :=
-spec p cs₀ fs₀ A ⦃o,v⦄
+spec m₀ ⦃o,v⦄
 
 def SPEC₁ (v : tvar β) (o : tvar γ) : cpred :=
-spec q cs₁ fs₁ C ⦃o,v⦄
+spec m₁ ⦃o,v⦄
 
 def SPEC₂ (v : tvar β) (o : tvar γ) (s : tvar evt) : cpred :=
-spec_sch q cs₁ fs₁ C ⦃o,v⦄ s
+spec_sch m₁ ⦃o,v⦄ s
 
 end specs
 
@@ -379,7 +386,8 @@ end
 lemma one_to_one
 : Γ ⊢ ∃∃ w, SPEC₀ w o :=
 begin [temporal]
-  select_witness w : temporal.one_to_one.Wtn w with Hw,
+  select_witness w : temporal.one_to_one.Wtn w
+    with Hw using J,
   have this := H, revert this,
   dsimp [SPEC₀,SPEC₁],
   have H' := temporal.one_to_one.H' , -- o sch,
@@ -420,13 +428,13 @@ end SPEC₂
 
 section refinement_SPEC₂
 include Hpo SIM₀ SIM init_Jₐ evt_Jₐ
-parameters cs₁ fs₁ cs₀ fs₀
+parameters m₁ m₀
 
 lemma refinement_SPEC₂
 : Γ ⊢ (∃∃ sch, SPEC₂ v o sch) ⟶ (∃∃ a, SPEC₀ a o) :=
 begin [temporal]
   simp, intros sch Hc,
-  apply one_to_one A C J Jₐ init_Jₐ evt_Jₐ SIM₀ SIM _ _ _ _ _  Hc,
+  apply one_to_one J Jₐ init_Jₐ evt_Jₐ SIM₀ SIM _ _ _ _ _  Hc,
   apply Hpo,
 end
 end refinement_SPEC₂

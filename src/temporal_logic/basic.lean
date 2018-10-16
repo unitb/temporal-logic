@@ -45,15 +45,15 @@ def cpred := tvar Prop
 
 abbreviation act (β : Sort u) := β → β → Prop
 
-def action (a : act α) (v : tvar α) : cpred :=
-⟨ λ i, a (v.apply i) (v.apply $ i.succ) ⟩
-
 def eventually (p : cpred) : cpred :=
 ⟨ λ i, ∃ j, p.apply (i+j) ⟩
 def henceforth (p : cpred) : cpred :=
 ⟨ λ i, ∀ j, p.apply (i+j) ⟩
 def next (p : tvar α) : tvar α :=
 ⟨ λ i, p.apply (i.succ) ⟩
+
+def action (a : act α) (v : tvar α) : cpred :=
+lifted₂ a v (next v)
 
 @[lifted_fn, reducible]
 def pair {α β} (x : tvar α) (y : tvar β) : tvar (α × β) :=
@@ -315,7 +315,7 @@ lemma eventually_entails_eventually {p q : cpred}
 : (◇p) ⟹ (◇q) :=
 begin
   apply tl_imp_elim',
-  monotonicity (f _),
+  mono,
 end
 
 lemma eventually_imp_eventually {p q : cpred} {Γ}
@@ -348,7 +348,7 @@ lemma henceforth_entails_henceforth {p q : cpred}
 : (◻p) ⟹ (◻q) :=
 begin
   refine tl_imp_elim' _,
-  monotonicity (tl_imp_intro' _ f),
+  mono
 end
 
 lemma henceforth_imp_henceforth {p q : cpred} {Γ}
@@ -363,11 +363,11 @@ end
 
 lemma inf_often_entails_inf_often {p q : cpred} (f : p ⟹ q)
 : ◻◇p ⟹ ◻◇q :=
-by monotonicity f
+by mono f
 
 lemma stable_entails_stable {p q : cpred} (f : p ⟹ q)
 : ◇◻p ⟹ ◇◻q :=
-by monotonicity f
+by mono f
 
 lemma henceforth_and (p q : cpred)
 : ◻(p ⋀ q) = ◻p ⋀ ◻q :=
@@ -421,6 +421,11 @@ lemma models_to_fun_var' (σ : ℕ) (f : tvar (α → α → β))
 : σ ⊨ to_fun_var' (λ x, var_seq $ var_seq f x) = σ ⊨ f :=
 by { casesm* tvar _, dunfold to_fun_var', simp_coes [var_seq], }
 
+@[tl_simp, simp, predicate]
+lemma models_to_fun_var''' (σ : ℕ) (f : tvar α → tvar α → tvar β) (x y : tvar α)
+: (σ ⊨ to_fun_var' f x y) = (σ ⊨ f x y) :=
+sorry
+
 @[tl_simp, simp, predicate, lifted_fn]
 lemma to_fun_var_fn_coe_proj (f : var γ α) (g : var β φ → var β γ) (w : var β φ)
 : to_fun_var (λ w, f ! g w) w = f ! to_fun_var g w :=
@@ -434,7 +439,12 @@ by { funext, lifted_pred, simp!, }
 @[tl_simp, simp, predicate, lifted_fn]
 lemma to_fun_var_fn_coe' (f : tvar (α → α → β)) (w w' : tvar α)
 : ⇑(to_fun_var' $ λ w w', f w w') w w' = f w w' :=
-by { lifted_pred, simp! [to_fun_var'], }
+by { lifted_pred, }
+
+@[tl_simp, simp, predicate, lifted_fn]
+lemma to_fun_var_p_exists' (f : γ → tvar α → tvar α → tvar Prop) (w w' : tvar α)
+: ⇑(to_fun_var' $ λ w w', ∃∃ x : γ, f x w w') w w' = ∃∃ x : γ, to_fun_var' (f x) w w' :=
+by { lifted_pred, }
 
 @[lifted_fn]
 lemma to_fun_var_lift₁ (f : φ → β) (g : var γ α → var γ φ) (w : var γ α)
@@ -462,22 +472,22 @@ by { lifted_pred, simp }
 @[lifted_fn]
 lemma to_fun_var'_fn_coe (f : var φ β) (g : tvar α → tvar α → tvar φ) (w w' : tvar α)
 : (to_fun_var' (λ (w w' : tvar α), f ! g w w')) w w' = f ! to_fun_var' g w w'  :=
-by { lifted_pred, simp! [to_fun_var'], }
+by { lifted_pred, }
 
 @[lifted_fn]
 lemma to_fun_var'_coe (w w' : tvar α) (v : tvar β)
 : (to_fun_var' (λ (w w' : tvar α), v)) w w' = v :=
-by { lifted_pred, simp! [to_fun_var'], }
+by { lifted_pred, }
 
 @[lifted_fn]
 lemma to_fun_var'_id (w w' : tvar α)
 : to_fun_var' (λ w w' : tvar α, w) w w' = w :=
-by { lifted_pred, simp! [to_fun_var',next], }
+by { lifted_pred, }
 
 @[lifted_fn]
 lemma to_fun_var'_id' (w w' : tvar α)
 : to_fun_var' (λ w w' : tvar α, w') w w' = w' :=
-by { lifted_pred, simp! [to_fun_var'], }
+by { lifted_pred, }
 
 @[lifted_fn]
 lemma to_fun_var'_lift₂ {σ} (f : φ → σ → β)
@@ -485,7 +495,15 @@ lemma to_fun_var'_lift₂ {σ} (f : φ → σ → β)
   (g₁ : tvar α → tvar α → tvar σ) (w w' : tvar α)
 : to_fun_var' (λ (w w' : tvar α), lifted₂ f (g₀ w w') (g₁ w w')) w w' =
   lifted₂ f (to_fun_var' g₀ w w') (to_fun_var' g₁ w w') :=
-by { lifted_pred, simp! [to_fun_var'], }
+by { lifted_pred, }
+
+@[lifted_fn]
+lemma to_fun_var'_action {σ} (f : tvar α → tvar β)
+  (A : act β)
+  (g₁ : tvar α → tvar α → tvar σ) (w w' : tvar α)
+: to_fun_var' (λ (w w' : tvar α), ⟦ f w | A ⟧ ) w w' =
+  ⟦ f w | A ⟧ :=
+by { lifted_pred, }
 
 @[tl_simp, simp, predicate]
 lemma models_coe (σ : α) (x : β)

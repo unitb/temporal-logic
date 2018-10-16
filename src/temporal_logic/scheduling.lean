@@ -28,7 +28,7 @@ parameter {evt : Type u}
 parameter Γ : cpred
 parameter r : tvar (set evt)
 parameter Hr : Γ ⊢ ◻-(r ≃ (∅ : set evt))
-parameter [nonempty evt]
+-- parameter [nonempty evt]
 
 abbreviation SCHED  (s : tvar evt) :=
 ◻(s ∊ r) ⋀
@@ -38,7 +38,7 @@ abbreviation SCHED  (s : tvar evt) :=
 
 section implementation
 
-parameters {f : ℕ → evt} (Hinj : surjective f)
+parameters (f : ℕ → evt) (Hinj : surjective f)
 parameter p : tvar (ℕ → evt)
 parameter cur : tvar ℕ
 /- consider making select into a state variable instead of a definition -/
@@ -55,17 +55,20 @@ noncomputable def next_p (p : ℕ → evt) (r' : set evt) (i : ℕ) : ordering �
           then p (i + 1)
           else p i
 
-noncomputable def next' (r' : set evt) (x : ℕ × (ℕ → evt)) : ℕ × (ℕ → evt) :=
-let (cur,p) := x,
-    min := ↓ i : ℕ, p i ∈ r',
+noncomputable def next' (r' : set evt) : ℕ × (ℕ → evt) → ℕ × (ℕ → evt)
+ | (cur,p) :=
+let min := ↓ i : ℕ, p i ∈ r',
     cur' := max min $ cur+1,
     p' : ℕ → evt := λ i : ℕ,
           next_p p r' i (cmp i cur')
 in
 (cur',p')
 
+section
+
 noncomputable def next : tvar $ ℕ × (ℕ → evt) → ℕ × (ℕ → evt) :=
 ⟪ ℕ, next' ⟫ (⊙r)
+end
 
 @[simp]
 lemma next_def (cur cur' : ℕ) (p p' : ℕ → evt) (σ : ℕ)
@@ -105,7 +108,7 @@ parameter Hq : Γ ⊢ Spec
 
 @[predicate]
 def select : tvar evt :=
-[| p cur, p cur  |]
+p cur
 
 -- noncomputable def select_Spec :=
 -- select ≃ select₀ ⋀ ◻(⊙select ≃ nxt_select select)
@@ -523,55 +526,77 @@ end
 end
 end implementation
 
-class schedulable (α : Sort u) :=
-  (f : α → ℕ)
-  (inj : injective f)
+-- class schedulable (α : Sort u) :=
+--   (f : α → ℕ)
+--   (inj : injective f)
+open encodable
 
-lemma scheduler [schedulable evt]
-  (hr : Γ ⊢ ◻-(r ≃ (∅ : set evt)))
+example (w σ₀ : tvar ℕ)
+: ⇑(to_fun_var (λ (w : tvar ℕ), w ≃ σ₀)) w = w ≃ σ₀ :=
+begin
+  -- rw [v_eq,to_fun_var_lift₂],
+  -- dsimp,
+  -- dsimp,
+  -- unfold_coes,
+  -- dsimp with lifted_fn,
+  -- unfold_coes,
+  simp! only with lifted_fn predicate,
+end
+
+lemma scheduler [encodable evt]
+  (Hr : Γ ⊢ ◻-(r ≃ (∅ : set evt)))
 : Γ ⊢ (∃∃ s, SCHED s) :=
 begin [temporal]
-  let f' : (evt → ℕ) := @schedulable.f evt _,
+  let f' : (evt → ℕ) := @encode evt _,
   let f : tvar (evt → ℕ) := f',
-  let g' : (ℕ → evt) := inv (@schedulable.f evt _),
+  have Hnemp : ∃∃ x : evt, True,
+  { admit },
+  nonempty evt,
+  let g' : (ℕ → evt) := inv (@encode evt _),
   let g  : tvar (ℕ → evt) := g',
   let σ₀ := ⦃cur₀ r g',g⦄,
-  have := witness σ₀ (next r) Γ,
+  select_witness w : w ≃ σ₀ ⋀ ◻(⊙w ≃ temporal.scheduling.next w),
+  have := fwd_witness σ₀ (next r) Γ,
   cases this with cur Hcur,
   cases cur with cur q,
-  existsi select q cur,
+  existsi select p cur,
   note Hsur : surjective (inv f'),
   { apply surjective_of_has_right_inverse,
     existsi f',
     apply inv_is_left_inverse_of_injective,
     apply schedulable.inj },
-  apply correct_sched _ _ hr Hsur,
+  type_check @temporal.scheduling.correct_sched,
+  apply temporal.scheduling.correct_sched (inv f') Hsur _,
   simp [Spec,σ₀] at ⊢ Hcur,
   exact Hcur,
 end
 
+end scheduling
+
 section spec
 
-variable [schedulable evt]
-variable {α : Type v}
-variables p : pred' α
-variables cs fs : evt → pred' α
-variables A : evt → act α
+variables Γ : cpred
+variables {α : Type v} (m : mch α)
+local notation `evt` := m.evt
+variable [encodable evt]
+local notation `cs` := m.cs
+local notation `fs` := m.fs
+local notation `p` := m.init
+local notation `A` := m.A
 
 lemma sch_intro (v : tvar α)
-: Γ ⊢ spec p cs fs A v ⟶ (∃∃ sch, spec_sch p cs fs A v sch) :=
+: Γ ⊢ m.spec v ⟶ (∃∃ sch, m.spec_sch v sch) :=
 begin [temporal]
   intro h,
-  let r : tvar (set evt) := ⟪ ℕ, λ s s', { e | s ⊨ cs e ∧ s ⊨ fs e ∧ A e s s' } ⟫ v ⊙v,
-  have hr : ◻-(r ≃ (∅ : set evt)),
-  { simp [spec] at h,
+  let r : tvar (set (option evt)) := ⟪ ℕ, λ s s', { e | m.effect e s s' } ⟫ v ⊙v,
+  have hr : ◻-(r ≃ (∅ : set (option evt))),
+  { simp [mch.spec] at h,
     casesm* _ ⋀ _,
     select Hact : ◻(p_exists _),
     henceforth! at Hact ⊢,
     explicit' [r] with Hact
-    { simp [and_assoc] at Hact,
-      simp [not_eq_empty_iff_exists,Hact], }, },
-  have h' := temporal.scheduling.scheduler hr,
+    { erw [← not_eq_empty_iff_exists] at Hact, exact Hact }, },
+  have h' := temporal.scheduling.scheduler Γ r hr,
   cases h' with sch h',
   existsi sch,
   simp  at ⊢ h,
@@ -590,9 +615,9 @@ begin [temporal]
     persistent,
     have H₀ : ↑x ∊ r ≡ cs x ! v ⋀ fs x ! v ⋀ ⟦ v | A x ⟧,
     { explicit' [r]
-      { simp [and_assoc] }, },
+      { simp [mch.effect,and_assoc] }, },
     have H₁ : sch ≃ ↑x ⋀ ↑x ∊ r ≡ cs x ! v ⋀ fs x ! v ⋀ (sch ≃ ↑x ⋀ ⟦ v | A x ⟧),
-    { explicit' [r]
+    { explicit' [r,mch.effect,and_assoc]
       { apply eq.to_iff, ac_refl }, },
     rw [H₁,H₀] at a_1,
     solve_by_elim, }

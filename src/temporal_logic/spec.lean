@@ -37,6 +37,10 @@ def event' (aevt : Type u₀) (e : evt) (e' : aevt) : event (α × evt × aevt) 
 , fs e ! pair.fst
 , λ ⟨s,ce,_⟩ ⟨s',_,ae'⟩, ae' = e' ∧ ce = e ∧ A e s s' ⟩
 
+-- abbreviation ce' (i : cevt) (j : aevt) : event (γ×β×(cevt×aevt)) :=
+-- { p := cs₁ i!⟨prod.map_right fst⟩
+-- , q := fs₁ i!⟨prod.map_right fst⟩
+-- , A := λ ⟨o,v,ce,_⟩ ⟨o',v',_,ae'⟩, ae' = j ∧ ce = i ∧ C i (o,v) (o',v') }
 
 @[simp, tl_simp]
 def spec_saf_spec (v : tvar α) (sch : tvar evt) : cpred :=
@@ -93,6 +97,11 @@ def event' (aevt : Type u₀) (e : evt) (e' : aevt) : event (α × option evt ×
 ⟨ cs e ! pair.fst
 , fs e ! pair.fst
 , λ ⟨s,ce,_⟩ ⟨s',_,ae'⟩, ae' = e' ∧ ce = e ∧ A e s s' ⟩
+
+-- abbreviation ce' (i : cevt) (j : aevt) : event (γ×β×(cevt×aevt)) :=
+-- { p := cs₁ i!⟨prod.map_right fst⟩
+-- , q := fs₁ i!⟨prod.map_right fst⟩
+-- , A := λ ⟨o,v,ce,_⟩ ⟨o',v',_,ae'⟩, ae' = j ∧ ce = i ∧ C i (o,v) (o',v') }
 
 @[simp, tl_simp]
 def spec_saf_sch (v : tvar α) (sch : tvar (option evt)) : cpred :=

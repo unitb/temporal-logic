@@ -1,6 +1,6 @@
 
 import .scheduling
-import data.equiv
+import data.equiv.basic
 
 universes u v u' v'
 
