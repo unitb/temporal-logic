@@ -1,5 +1,6 @@
 
 import temporal_logic.basic
+import tactic.squeeze
 
 universe variables u u₀ u₁ u₂
 
@@ -13,29 +14,30 @@ class postponable (p : cpred) : Prop :=
 export postponable (postpone)
 
 instance henceforth_persistent {p : cpred} : persistent (◻p) :=
-by { constructor, simp only with tl_simp }
+by { constructor, simp only [temporal.henceforth_henceforth, eq_self_iff_true] with tl_simp }
 
 instance persistent_not {p : cpred} [postponable p] : persistent (-p) :=
 by { constructor, rw [← not_eventually, postpone p] }
 
 instance leads_to_persistent {p q : cpred} : persistent (p ~> q) :=
-by { constructor, simp [tl_leads_to,is_persistent] }
+by { constructor, simp only [tl_leads_to, is_persistent, eq_self_iff_true] }
 
 instance and_persistent {p q : cpred} [persistent p] [persistent q]
 : persistent (p ⋀ q) :=
-by { constructor, simp [henceforth_and,is_persistent], }
+by { constructor, simp only [henceforth_and, is_persistent, eq_self_iff_true], }
 
 instance coe_persistent (p : Prop)
 : persistent (p : cpred) :=
-by { constructor, cases classical.prop_complete p ; subst p ; simp with tl_simp, }
+by { constructor, cases classical.prop_complete p ; subst p ;
+     simp only [eq_self_iff_true, temporal.hence_false, predicate.coe_false,predicate.coe_true, eq_self_iff_true, temporal.hence_true] with tl_simp, }
 
 instance false_persistent
 : persistent (False : cpred) :=
-by { constructor, simp only with tl_simp, }
+by { constructor, simp only [eq_self_iff_true, temporal.hence_false] with tl_simp, }
 
 instance forall_persistent {p : α → cpred} [∀ i, persistent (p i)]
 : persistent (p_forall p) :=
-by { constructor, simp [henceforth_forall,is_persistent], }
+by { constructor, simp only [henceforth_forall, is_persistent, eq_self_iff_true], }
 
 
 instance exists_persistent {p : α → cpred} [∀ i, persistent (p i)]
@@ -43,25 +45,25 @@ instance exists_persistent {p : α → cpred} [∀ i, persistent (p i)]
 by { constructor, apply mutual_entails,
      apply henceforth_str,
      apply p_exists_elim, intro, rw ← is_persistent (p x),
-     monotonicity, apply p_exists_intro, }
+     mono, apply p_exists_intro, }
 
 instance (p : cpred) : postponable (◇p) :=
-by { constructor, simp [eventually_eventually] }
+by { constructor, simp only [eventually_eventually, temporal.eventually_eventually, eq_self_iff_true] }
 
 instance postponable_not {p : cpred} [persistent p] : postponable (-p) :=
 by { constructor, rw [← not_henceforth, is_persistent p] }
 
 instance or_postponable {p q : cpred} [postponable p] [postponable q]
 : postponable (p ⋁ q) :=
-by { constructor, simp [eventually_or,postpone], }
+by { constructor, simp only [eventually_or, postpone, eq_self_iff_true], }
 
 instance imp_postponable {p q : cpred} [persistent p] [postponable q]
 : postponable (p ⟶ q) :=
-by { simp [p_imp_iff_p_not_p_or], apply_instance }
+by { simp only [p_imp_iff_p_not_p_or], apply_instance }
 
 instance coe_postponable (p : Prop)
 : postponable (p : cpred) :=
-by { constructor, cases classical.prop_complete p ; subst p ; simp with tl_simp, }
+by { constructor, cases classical.prop_complete p ; subst p ; simp only [temporal.event_false, eq_self_iff_true, predicate.coe_false, predicate.coe_true, temporal.eventually_true, eq_self_iff_true] with tl_simp, }
 
 instance forall_postponable (p : α → cpred) [∀ i, postponable (p i)]
 : postponable (p_forall p) :=
@@ -71,18 +73,36 @@ instance forall_postponable (p : α → cpred) [∀ i, postponable (p i)]
       introv h, rw p_forall_to_fun, intro i,
       rw ← postpone (p i), revert h, apply p_impl_revert,
       revert Γ, change (_ ⟹ _),
-      monotonicity, rw [p_entails_of_fun],
+      mono, rw [p_entails_of_fun],
       introv h, apply p_forall_revert h },
     apply eventually_weaken
   end ⟩
 
 instance exists_postponable (p : α → cpred) [∀ i, postponable (p i)]
 : postponable (p_exists p) :=
-by constructor ; simp [eventually_exists,postpone]
+by constructor ; simp only [eventually_exists, postpone, eq_self_iff_true]
+
+instance lifted₀_postponable (c : Prop) : postponable (lifted₀ c) :=
+by { constructor, ext, simp only [lifted₀, eventually, iff_self, predicate.lifted₀, exists_const] }
+
+instance lifted₀_persistent (c : Prop) : persistent (lifted₀ c) :=
+by { constructor, ext, simp only [lifted₀, henceforth, forall_const, iff_self, predicate.lifted₀] }
+
+instance True_postponable : postponable True :=
+by { dunfold True, apply_instance }
+
+instance True_persistent : persistent True :=
+by { dunfold True, apply_instance }
+
+instance False_postponable : postponable False :=
+by { dunfold False, apply_instance }
+
+instance False_persistent : persistent False :=
+by { dunfold False, apply_instance }
 
 -- instance not_forall_persistent {p : α → cpred} [∀ i, persistent (- p i)]
 -- : persistent (- p_forall p) :=
--- by { constructor, simp [p_not_p_forall], apply is_persistent }
+-- by { constructor, squeeze_simp [p_not_p_forall], apply is_persistent }
 
 inductive list_persistent : list cpred → Prop
  | nil_persistent : list_persistent []
@@ -124,7 +144,7 @@ lemma p_imp_postpone (Γ p q : cpred)
 : ctx_impl Γ (◇p) q :=
 begin
   rw ← postpone q,
-  monotonicity h,
+  mono,
 end
 
 lemma persistent_to_henceforth {p q : cpred}
@@ -146,7 +166,5 @@ instance has_coe_to_fun_henceforth (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ ◻
 
 instance has_coe_to_fun_leads_to (Γ p q : cpred) : has_coe_to_fun (Γ ⊢ p ~> q) :=
 temporal.has_coe_to_fun_henceforth _ _ _
-
-
 
 end temporal

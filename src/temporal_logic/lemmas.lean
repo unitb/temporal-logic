@@ -5,6 +5,7 @@ import util.meta.tactic
 import util.logic
 import util.classical
 import util.predicate
+import util.meta.tactic.propositional
 
 import tactic
 
@@ -24,7 +25,7 @@ lemma henceforth_next (p : cpred)
 : ◻p ⟹ ◻⊙p :=
 begin [temporal]
   rw henceforth_next_intro p,
-  monotonicity, simp,
+  mono, simp,
 end
 
 lemma next_henceforth (p : cpred)
@@ -51,7 +52,7 @@ end
 lemma eventually_and_entails {p q : cpred}
 : ◇(p ⋀ q) ⟹ ◇p ⋀ ◇q :=
 begin
-  apply entails_p_and_of_entails ; monotonicity ; propositional,
+  apply entails_p_and_of_entails ; mono ; propositional,
 end
 
 lemma entails_henceforth_or {p q : cpred}
@@ -82,7 +83,7 @@ begin [temporal]
     -- p q : cpred
     -- h : p ~> q
     -- ⊢ ◻◇p ⟶ ◻◇◇q
-  monotonicity,
+  mono*,
     -- β : Type u₁
     -- p q : cpred
     -- h : p ~> q
@@ -100,7 +101,7 @@ begin [temporal]
   have := Hpq hp, revert this,
   rw ← eventually_eventually r,
   clear hp,
-  monotonicity,
+  mono,
   apply Hqr,
 end
 
@@ -158,7 +159,7 @@ begin
     cases h with h h,
     { rw ← is_persistent p at h,
       revert h,
-      monotonicity,
+      mono,
       propositional, },
     { henceforth, right, exact h }
   end
@@ -180,7 +181,7 @@ begin
     apply induct,
     henceforth,
     rw next_eventually_comm,
-    monotonicity,
+    mono,
     apply next_henceforth
   end
 end
@@ -300,11 +301,11 @@ do e₀ ← event_to_event e₀, e₁ ← event_to_event e₁,
      n₀ ← mk_fresh_name,
      n₁ ← mk_fresh_name,
      temporal.interactive.cases (none,to_pexpr h) [n₀,n₁],
-     temporal.interactive.eventually n₁ ff <|> fail "here",
+     temporal.interactive.eventually n₁ none <|> fail "here",
      e₀ ← get_local n₁, temporal.interactive.cases (none,to_pexpr e₀) ids,
      cleanup,
      tactic.swap,
-     temporal.interactive.eventually n₀ ff <|> fail "there",
+     temporal.interactive.eventually n₀ none <|> fail "there",
      e₀ ← get_local n₀, temporal.interactive.cases (none,to_pexpr e₀) ids,
      tactic.swap
    else temporal.interactive.cases (none,to_pexpr h) ids,
@@ -376,11 +377,11 @@ begin
     rw [not_henceforth,not_eventually] at h₁,
     have := coincidence h₁ h₀, clear h₀ h₁,
     rw p_not_and_self_or at this,
-    revert this, monotonicity,
+    revert this, mono*,
     apply p_and_elim_right,
   end,
   refine p_or_entails_of_entails _ _
-  ; monotonicity ; propositional,
+  ; mono* ; propositional,
 end
 
 @[monotonic]
@@ -544,6 +545,7 @@ lemma inf_often_induction'
 : Γ ⊢ ◻◇p ⟶ ◻◇q :=
 begin [temporal]
   intros Hp,
+  unfold henceforth,
   have Hex : ∀∀ (v : β'), V ≃ v ~> q,
   { intro v,
     wf_induction v with v,
@@ -570,6 +572,74 @@ begin [temporal]
 end
 
 end inf_often_induction'
+
+section prophecy
+
+variable {Γ : cpred}
+-- variable [temporal.persistent Γ]
+-- variables I N : cpred
+variables PI J : tvar (α → Prop)
+variables PN : tvar (act α)
+variables PSync : cpred
+variables h_PSync : Γ ⊢ ◻◇PSync
+variables Init : cpred
+-- variables h_Init : Γ ⊢ Init
+variable h_PI : Γ ⊢ ∀∀ p : α, J p ⟶ PI p
+variable h_PN : Γ ⊢ ◻(∀∀ p' : α, J p' ⟶ ∃∃ p : α, PN p p' ⋀ J p)
+-- variable h_PSync' : Γ ⊢ PSync ⟶ ∃∃ p : α, J p ⋀ ∀∀ p', J p' ⟶ PN p p'
+variable h_PSync' : Γ ⊢ ◻(PSync ⟶ ∃∃ p : α, PI p ⋀ J p)
+
+-- variables (i j : ℕ)
+
+-- def w : ℕ → α
+
+include h_PI h_PN h_PSync h_PSync'
+open nat
+-- set_option profiler true
+-- #check predicate.p_exists_imp_p_exists'
+lemma prophecyI
+: Γ ⊢ ∃∃ w : tvar α, PI w ⋀ ◻PN w (⊙w) ⋀ ◻J w :=
+begin [temporal]
+  have : ∃∃ x : α, (True : cpred),
+  { henceforth at h_PSync,
+    eventually h_PSync,
+    have : ∃∃ x : α, PI x ⋀ J x := h_PSync' h_PSync,
+    apply predicate.p_exists_entails_p_exists _ _ _ _ this,
+    intro, simp },
+  nonempty α,
+  let x₀ : tvar α := ⟨ λ i, ε x, i ⊨ PI x ∧ i ⊨ J x ⟩,
+  let f : tvar (α → α) := ⟨ λ i x', ε x, i ⊨ PN x x' ∧ succ i ⊨ J x' ⟩ ,
+  have := back_witness x₀ f h_PSync,
+  revert this,
+  apply p_exists_p_imp_p_exists,
+  intros w h,
+  suffices : ◻J w,
+  { split, split,
+    henceforth at this,
+    explicit' with this h_PI
+    { solve_by_elim },
+    admit, exact this },
+  { suffices : ◻(J w ⋁ PSync ⋀ w ≃ x₀),
+    { revert this, mono!, intro h',
+      cases h' with h₀ h₁, exact h₁,
+      henceforth at h_PSync',
+      explicit' with h₀ h_PSync'
+      { cases h₀,
+        suffices : PI w ∧ J w, exact this.right,
+        subst w, apply_epsilon_spec, } },
+    apply henceforth_until,
+    have : ◻◇((PSync ⋀ w ≃ x₀)), admit,
+    revert this, mono!,
+    apply until_backward_induction _ _,
+    -- have : _ ⟶ (-PSync ⋀ J w)  𝒰  (PI w ⋀ J w) := until_backward_induction _ _,
+    -- suffices : ◻(J w  𝒰  (PSync ⋀ w ≃ x₀)),
+}
+end
+
+#check @until_backward_induction
+
+end prophecy
+
 
 attribute [irreducible] next
 section
@@ -630,7 +700,7 @@ lemma lifted_henceforth (p q : cpred)
 begin
   apply mutual_p_imp
   ; change ctx_impl _ _ _
-  ; monotonicity
+  ; mono
   ; apply p_imp_of_equiv,
   apply h, apply v_eq_symm h
 end
@@ -642,7 +712,7 @@ lemma lifted_eventually (p q : cpred)
 begin
   apply mutual_p_imp
   ; change ctx_impl _ _ _
-  ; monotonicity
+  ; mono
   ; apply p_imp_of_equiv,
   apply h, apply v_eq_symm h
 end

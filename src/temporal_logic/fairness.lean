@@ -30,8 +30,8 @@ lemma sched_imp_sched {Γ p q A A' : cpred}
   (hA : Γ ⊢ ◻(A ⟶ A'))
 : Γ ⊢ sched p q A ⟶ sched p q A' :=
 begin [temporal]
-  simp [sched],
-  monotonicity, apply hA,
+  dsimp [sched],
+  mono*, apply hA,
 end
 
 -- TODO(Simon) replace ~> with ◻◇_ ⟶ ◻◇_
@@ -154,23 +154,23 @@ begin [temporal]
     have H₉ := temporal.fairness.splitting.H₁ i _ hp',
     have : ◻◇q i,
     { have := inf_often_of_leads_to (temporal.fairness.splitting.H₀ i) _, revert this,
-      { monotonicity!, lifted_pred, show _, { intros, assumption } },
+      { mono!*, lifted_pred, show _, { intros, assumption } },
       rw_using : (p' ⋀ q' ⋀ w i) = (p' ⋀ w i ⋀ q'),
       { lifted_pred, tauto },
       apply coincidence _ hq',
       { apply stable_and_of_stable_of_stable hp',
-        revert H₉, monotonicity! p_and_elim_right _ _ _, }, },
+        revert H₉, mono! * }, },
     replace this := H₅ i _ this,
     { have H₂ := temporal.fairness.splitting.H₂ i,
       replace this := coincidence H₉ this,
       henceforth! at this ⊢, eventually this ⊢,
       casesm* _ ⋀ _, apply H₂ ; assumption  },
-    { revert H₉, monotonicity!, lifted_pred,
+    { revert H₉, mono!, lifted_pred,
       show _, { intros, assumption } },
-    { revert H₇, monotonicity!, lifted_pred }, },
+    { revert H₇, mono!, lifted_pred }, },
   { have := coincidence hp' hq', revert this,
     have H₃ := temporal.fairness.splitting.H₃,
-    monotonicity!,
+    mono!,
     intros hp,
     have := H₃ hp,
     revert this, apply p_exists_p_imp_p_exists,

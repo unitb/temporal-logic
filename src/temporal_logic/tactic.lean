@@ -7,7 +7,6 @@ import util.meta.tactic
 import tactic.basic
 
 import tactic
-import tactic.find
 
 import temporal_logic.basic
 import temporal_logic.persistent
@@ -86,7 +85,7 @@ do x ← try_core x,
    else guarded xs
 
 meta def check_scope (e : expr) : tactic unit :=
-do mmap' (get_local ∘ expr.local_pp_name) e.list_local_const
+do mmap' (get_local ∘ expr.local_pp_name) e.list_local_consts
 
 meta def type_check_result (msg : format) : tactic unit :=
 result >>= type_check <|> fail msg
@@ -190,7 +189,7 @@ do cleanup,
    fmt ← mmap temp_to_fmt gs',
    set_goals gs,
    tactic.save_info_thunk p (λ _,
-     let header := if gs.length > 1 then format!"{gs.length} goals\n" else "",
+     let header := if fmt.length > 1 then format!"{fmt.length} goals\n" else "",
          eval : thunk format → format := λ f, f () in
      if fmt.empty
        then "no goals"
@@ -413,7 +412,7 @@ meta def is_context_persistent : temporal bool :=
 do `(%%Γ ⊢ _) ← target | return ff,
    (tt <$ (to_expr ``(persistent %%Γ) >>= mk_instance)) <|>
      return ff
-
+open list
 meta def create_persistent_context : temporal unit :=
 do b ← is_context_persistent,
    when (¬ b) $ do
@@ -422,7 +421,7 @@ do b ← is_context_persistent,
      pred_t ← infer_type Γ,
      Γ ← get_local Γ.local_pp_name,
      (asms',inst) ← mk_type_list Γ pred_t asms,
-     r ← tactic.revert_lst (Γ :: asms).reverse,
+     r ← tactic.revert_lst (Γ :: asms : list _).reverse,
      guard (r = asms.length + 1) <|> fail format!"wrong use of context {Γ}",
      ts ← mmap consequent asms,
      hnm ← mk_fresh_name,
@@ -574,7 +573,7 @@ private meta def enter_list_state : temporal (expr × list expr × expr) :=
 do `(%%Γ ⊢ %%p) ← target,
    ls ← get_assumptions,
    ls' ← mk_type_list ls,
-   r ← revert_lst (Γ :: ls).reverse,
+   r ← revert_lst (Γ :: ls : list _).reverse,
    let k := ls.length + 1,
    guard (r = k)
          <|> fail format!"wrong use of context {Γ}: {r} ≠ {k}",
@@ -601,7 +600,7 @@ do (Γ,ls,ls') ← enter_list_state,
         , `temporal.tl_seq
         , `has_append.append
         , `list.append] (loc.ns [none]),
-      tactic.intro_lst ((Γ :: ls).map expr.local_pp_name)
+      tactic.intro_lst ((Γ :: ls : list _).map expr.local_pp_name)
 
 meta def intro_aux (n : option name) : temporal (expr ⊕ name) :=
 do ( to_expr ``(tl_seq _ (_ ⟶ _)) >>= change
@@ -744,7 +743,7 @@ lemma v_eq_symm_h {α} {Γ : cpred} {v₀ v₁ : tvar α}
 begin
   revert h, apply p_impl_revert,
   revert Γ, change (_ ⟹ _),
-  monotonicity,
+  mono,
   lifted_pred, intro h, rw h
 end
 
@@ -946,7 +945,7 @@ do g :: gs ← get_goals,
 
 namespace interactive
 open lean.parser interactive interactive.types lean
-open expr tactic.interactive (rcases_parse rcases_parse.invert)
+open expr -- tactic.interactive (rcases_parse rcases_parse.invert)
 local postfix `?`:9001 := optional
 local postfix *:9001 := many
 
@@ -1106,7 +1105,7 @@ do hs ← hs.mmap get_local,
      note h.local_pp_name none e,
      tactic.clear h),
    let rs' := map simp_arg_type.expr
-       [``(comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)
+       [``(function.comp),``(on_fun),``(prod.map),``(prod.map_left),``(prod.map_right)
        ,``(coe),``(lift_t),``(has_lift_t.lift),``(coe_t),``(has_coe_t.coe)
        ,``(coe_b),``(has_coe.coe)
        ,``(coe_fn), ``(has_coe_to_fun.coe), ``(coe_sort), ``(has_coe_to_sort.coe)
@@ -1361,10 +1360,10 @@ do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    temporal.intro1 id
 
 meta def focus_left (ids : parse with_ident_list) : temporal unit :=
-() <$ focus_left' ids.opt_head
+() <$ focus_left' ids.head'
 
 meta def focusing_left (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
-do x ← focus_left' ids.opt_head,
+do x ← focus_left' ids.head',
    focus1 (do
      tac,
      get_local x.local_pp_name >>= temporal.revert,
@@ -1376,10 +1375,10 @@ do `(%%Γ ⊢ _ ⋁ _) ← target | fail "expecting `_ ⋁ _`",
    temporal.intro1 id
 
 meta def focus_right (ids : parse with_ident_list) : temporal unit :=
-() <$ focus_right' ids.opt_head
+() <$ focus_right' ids.head'
 
 meta def focusing_right (ids : parse with_ident_list) (tac : itactic) : temporal unit :=
-do x ← focus_right' ids.opt_head,
+do x ← focus_right' ids.head',
    focus1 (do
      tac,
      get_local x.local_pp_name >>= temporal.revert,
@@ -1473,7 +1472,7 @@ do { exfalso,
 
 /- TODO(Simon) Use  -/
 meta def assumption (tac : temporal unit := return ()) : temporal unit :=
-do `(_ ⊢ _) ← target | tactic.interactive.apply_assumption none tac,
+do `(_ ⊢ _) ← target | tactic.interactive.apply_assumption local_context tac,
    apply_assumption none tac <|> strengthening (apply_assumption none tac)
 
 meta def try (tac : itactic) : temporal unit :=
@@ -1685,6 +1684,14 @@ meta def transitivity : parse texpr? → temporal unit
  | none := apply ``(predicate.p_imp_trans )
  | (some p) := apply ``(@predicate.p_imp_trans _ _ _ %%p _ _ _)
 
+lemma nonempty_of_tvar (α) {β} {Γ p : pred' α}
+  (v  : tvar β)
+  (h' : Π [nonempty β], Γ ⊢ p)
+: Γ ⊢ p :=
+by { lifted_pred keep,
+     have inst := nonempty.intro (0 ⊨ v),
+     apply (@h' inst).apply _ a, }
+
 lemma nonempty_of_p_exists (α) {β} {Γ p : pred' α} {q : β → pred' α}
   (h  : Γ ⊢ p_exists q)
   (h' : Π [nonempty β], Γ ⊢ p)
@@ -1696,9 +1703,10 @@ by { lifted_pred keep using h,
 meta def nonempty (t : parse texpr) : temporal unit :=
 do `(%%Γ ⊢ %%p) ← target,
    q  ← mk_mvar,
-   v ← to_expr ``(%%Γ ⊢ @p_exists _ %%t %%q) >>= assert `h,
-   tactic.assumption,
-   refine ``(@nonempty_of_p_exists _ %%t %%Γ %%p %%q %%v _),
+   do { v ← to_expr ``(%%Γ ⊢ @p_exists _ %%t %%q) >>= find_assumption,
+        refine ``(@nonempty_of_p_exists _ %%t %%Γ %%p %%q %%v _) } <|>
+   do { v ← to_expr ``(tvar %%t) >>= find_assumption,
+        refine ``(@nonempty_of_tvar _ %%t %%Γ %%p %%v _) },
    tactic.intro1,
    resetI,
    return ()
@@ -1771,25 +1779,6 @@ end
 
 end historyI
 
-section prophecy
-variable {α : Sort*}
-variable {Γ : cpred}
-variable [temporal.persistent Γ]
--- variables I N : cpred
-variables PI J : tvar (α → Prop)
-variables PN : tvar (act α)
-variables PSync : cpred
-variables h_PSync : Γ ⊢ ◻◇PSync
--- variables Γ : cpred
--- variable h_PI : Γ ⊢ ∃∃ p : α, PI p
-variable h_PN : Γ ⊢ ∀∀ p' : α, J p' ⟶ ∃∃ p : α, PN p p' ⋀ J p
-variable h_PSync' : Γ ⊢ PSync ⟶ ∃∃ p : α, J p ⋀ ∀∀ p', J p' ⟶ PN p p'
-
-lemma prophecyI
-: Γ ⊢ ∃∃ w : tvar α, PI w ⋀ ◻PN w (⊙w) ⋀ ◻J w :=
-sorry
-
-end prophecy
 lemma witness_elim {α} {P : tvar α → cpred} {Γ : cpred}
   (x₀ : tvar α)
   (f : tvar (α → α))
@@ -1843,7 +1832,7 @@ meta def select_witness
   (w : parse $ ident_ <* tk ":")
   (p : parse texpr)
   (asm : parse $ (tk "with" *> prod.mk <$> ident <*> ident?)?)
-  (inv : parse $ (tk "using" *> brack_expr) <|> pure (sum.inr ``(True)))
+  (inv : parse $ ((tk "using" *> texpr) <|> pure (``(True))) <* tk ",")
   (tac : tactic.interactive.itactic)
 : temporal unit :=
 do `(%%Γ ⊢ %%q) ← target,
@@ -1861,10 +1850,7 @@ do `(%%Γ ⊢ %%q) ← target,
    (_,J) ← solve_aux t' (do
      -- refine ``(to_fun_var _),
      tactic.intro w,
-     match inv with
-      | (sum.inr inv) := to_expr inv
-      | (sum.inl n) := resolve_name n >>= to_expr
-     end  >>= tactic.exact ),
+     to_expr inv  >>= tactic.exact ),
    v ← mk_local_def w u,
    p' ← head_beta (p v),
    -- q' ← head_beta (q v),
@@ -1906,7 +1892,7 @@ do `(%%Γ ⊢ %%q) ← target,
        set_goals [h],
        focus1 `[intros, simp! only with lifted_fn],
        get_goals ),
-     set_goals hs.join >> tac >> done,
+     set_goals hs.join >> trace_state >> tac >> done,
      set_goals [new_g]
 
 #check witness_elim'
@@ -1923,7 +1909,7 @@ open applicative (mmap₂ lift₂)
 open functor
 local postfix `?`:9001 := optional
 
-meta def monotonicity1 (only_pers : parse (tk "!")?) : temporal unit :=
+meta def mono1 (only_pers : parse (tk "!")?) : temporal unit :=
 do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
@@ -1931,12 +1917,13 @@ do ex ← (if ¬ only_pers.is_some then do
    if ex
    then persistently $ do
           to_expr ``(ctx_impl _ _ _) >>= change,
-          tactic.interactive.monotonicity1
+          tactic.interactive.mono none interactive.mono_selection.both []
    else do
      to_expr ``(ctx_impl _ _ _) >>= change,
-     tactic.interactive.monotonicity1
+     tactic.interactive.mono none interactive.mono_selection.both []
 
-meta def monotonicity_n (n : ℕ) (only_pers : parse (tk "!")?) : temporal unit  :=
+meta def mono_n (n : ℕ) (only_pers : parse (tk "!")?)
+  (dir : parse interactive.side) : temporal unit  :=
 do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
@@ -1944,24 +1931,35 @@ do ex ← (if ¬ only_pers.is_some then do
    if ex
    then persistently $ do
           to_expr ``(ctx_impl _ _ _) >>= change,
-          tactic.iterate_exactly n tactic.interactive.monotonicity1
+          tactic.iterate_exactly n (tactic.interactive.mono none dir [])
    else do
      to_expr ``(ctx_impl _ _ _) >>= change,
-     tactic.iterate_exactly n tactic.interactive.monotonicity1
+     tactic.iterate_exactly n (tactic.interactive.mono none dir [])
 
-meta def monotonicity (only_pers : parse (tk "!")?)
+meta def mk_assert : pexpr ⊕ pexpr → tactic expr
+| (sum.inl h) := to_expr h
+| (sum.inr p) := to_expr p >>= mk_meta_var
+
+meta def mono
+  (only_pers : parse (tk "!")?)
+  (many : parse (tk "*")?)
+  (dir : parse interactive.side)
   (e : parse assert_or_rule?) : temporal unit :=
 do ex ← (if ¬ only_pers.is_some then do
       asms ← get_assumptions,
       list.band <$> asms.mmap is_henceforth
    else tt <$ interactive.persistent []),
+   -- trace ex,
    if ex
    then persistently $ do
+          -- trace "foo",
           to_expr ``(ctx_impl _ _ _) >>= change,
-          tactic.interactive.monotonicity e
+          -- trace "bar",
+          -- h ← mk_assert e,
+          tactic.interactive.mono many dir []
    else do
      to_expr ``(ctx_impl _ _ _) >>= change,
-     tactic.interactive.monotonicity e
+     tactic.interactive.mono many dir []
 
 meta def interactive.apply_mono (f e : parse ident) : temporal unit :=
 do get_local e >>= temporal.revert,
@@ -1971,10 +1969,10 @@ do get_local e >>= temporal.revert,
      interactive.persistent [],
      persistently  $ do
           to_expr ``(ctx_impl _ _ _) >>= change,
-          tactic.interactive.monotonicity (some $ sum.inl ``(%%f))
-   else tactic.interactive.monotonicity (some $ sum.inl ``(%%f))
+          tactic.interactive.ac_mono interactive.rep_arity.many (some $ sum.inl ``(%%f))
+   else tactic.interactive.ac_mono interactive.rep_arity.many (some $ sum.inl ``(%%f))
 
-private meta def goal_flag := tt <$ tk "⊢" <|> tt <$ tk "|-" <|> pure ff
+private meta def goal_flag := optional $ tk "⊢" <|> tk "|-"
 
 meta def interactive.guard_target
      (e : parse texpr) : temporal unit :=
@@ -1993,9 +1991,9 @@ do `(%%Γ ⊢ %%p) ← target,
    `(%%Γ' ⊢ ◇%%q) ← infer_type h' | fail format!"{h} should be a temporal formula of the form ◇_",
    is_def_eq Γ Γ',
    revert h',
-   if goal then do
+   if goal.is_some then do
      `(◇ %%p) ← pure p | fail format!"expecting a goal of the form `◇ _`",
-     monotonicity1 (some ())
+     mono1 (some ())
    else
      interactive.persistent [] >>
      persistently (do `(%%Γ ⊢ ◇%%q ⟶ %%p) ← target, refine ``(p_imp_postpone %%Γ %%q %%p _)),
@@ -2059,7 +2057,7 @@ meta def interactive.congr := tactic.interactive.congr
 meta def interactive.ext := tactic.interactive.ext
 
 run_cmd do
-  let ls := [`monotonicity,`monotonicity1,`persistently],
+  let ls := [``mono,``mono1,``persistently],
   ls.for_each $ λ l, do
     env    ← get_env,
     d_name ← resolve_constant l,

@@ -68,9 +68,9 @@ begin [temporal]
   -- ⊢ ⇑(⇑(to_fun_var' (λ (w w_1 : tvar α), ⇑(⇑Wf w) w_1)) w) w' = ⇑(⇑Wf w) w'
   select_witness w : temporal.simulation.Wtn w
     with Hw hJ
-    using J!⦃o,w,v⦄,
-  explicit' [Wx₀] with H₀
-  { solve_by_elim },
+    using (J!⦃o,w,v⦄), { },
+  explicit' [SPEC₀,Wx₀] with H₀
+    { solve_by_elim, } ,
   -- intros,
   explicit' [Wf] with Hnext
   { intros, apply SIM ; assumption, },
@@ -78,7 +78,7 @@ begin [temporal]
   simp only [SPEC₀,SPEC₁,Wtn],
   apply ctx_p_and_p_imp_p_and',
   explicit' [Wx₀] {  },
-  monotonicity!,
+  mono!,
   explicit' [Wf] {  },
 end
 

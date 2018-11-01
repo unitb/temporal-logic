@@ -1,6 +1,8 @@
 
 import util.predicate
+import util.classical
 import util.meta.tactic
+import tactic.linarith
 
 @[user_attribute]
 meta def strengthening_attr : user_attribute :=
@@ -52,6 +54,12 @@ def henceforth (p : cpred) : cpred :=
 def next (p : tvar α) : tvar α :=
 ⟨ λ i, p.apply (i.succ) ⟩
 
+def until (p q : cpred) : cpred :=
+⟨ λ i, ∃ j, i+j ⊨ q ∧ ∀ k < j, i+k ⊨ p ⟩
+
+def wait (p q : cpred) : cpred :=
+until p q ⋁ henceforth p
+
 def action (a : act α) (v : tvar α) : cpred :=
 lifted₂ a v (next v)
 
@@ -68,6 +76,8 @@ notation `⦃` x₀ `,` x₁ `,` x₂ `,` x₃ `,` x₄ `⦄` := pair x₀ (pair
 prefix `⊙`:90 := next
 prefix `◇`:95 := eventually -- \di
 prefix `◻`:95 := henceforth -- \sqw
+infixl `  𝒰  `:95 := until -- \McU
+infixl `  𝒲  `:95 := wait -- \McU
 notation `⟦ `:max v ` | `:50 R ` ⟧`:0 := action R v
 notation `⟦ `:max v `,` v' ` | `:50 R ` ⟧`:0 := action R (pair v v')
 notation `⟦ `:max v₀ `,` v₁ `,` v₂ ` | `:50 R ` ⟧`:0 := action R (pair v₀ (pair v₁ v₂))
@@ -363,11 +373,11 @@ end
 
 lemma inf_often_entails_inf_often {p q : cpred} (f : p ⟹ q)
 : ◻◇p ⟹ ◻◇q :=
-by mono f
+by mono*
 
 lemma stable_entails_stable {p q : cpred} (f : p ⟹ q)
 : ◇◻p ⟹ ◇◻q :=
-by mono f
+by mono*
 
 lemma henceforth_and (p q : cpred)
 : ◻(p ⋀ q) = ◻p ⋀ ◻q :=
@@ -579,29 +589,73 @@ begin
   simp,
 end
 
-section witness
-variables x₀ : tvar α
-variables f : tvar (α → α)
-variables (i : ℕ)
+local attribute [instance] classical.prop_decidable
 
-open classical nat
-
-private def w : ℕ → α
- | 0 := i ⊨ x₀
- | (succ j) := (i + j ⊨ f) (w j)
-
-lemma fwd_witness
-: ⊩ ∃∃ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) :=
+lemma until_not_of_eventually {Γ p : cpred} :
+  Γ ⊢ ◇p ⟶ -p 𝒰 p :=
 begin
-  lifted_pred,
-  existsi (⟨ λ i, w x₀ f x (i - x) ⟩ : tvar α),
-  simp [nat.sub_self,w],
-  intro i,
-  have h : x + i ≥ x := nat.le_add_right _ _,
-  simp [next,nat.add_sub_cancel_left,succ_sub h,w],
+  lifted_pred, intro h,
+  cases h with i h,
+  induction i using nat.strong_induction_on with i ih,
+  by_cases h' : ∃ j < i, σ + j ⊨ p,
+  { rcases h' with ⟨j,h₀,h₁⟩,
+    apply ih _ h₀ h₁ },
+  { simp only [not_exists] at h',
+    existsi [i,h], apply h' }
 end
 
-end witness
+lemma until_backward_induction {Γ p q : cpred}
+  (h' : Γ ⊢ ◻(p ⟶ q))
+  (h : Γ ⊢ ◻(⊙q ⟶ -p ⟶ q)) :
+  Γ ⊢ ◇p ⟶ q 𝒰 p :=
+begin
+  suffices : Γ ⊢ -p 𝒰 p ⟶ q 𝒰 p,
+  { have h' := @until_not_of_eventually Γ p,
+    lifted_pred using this h', tauto },
+  lifted_pred using h h',
+  dsimp [until],
+  apply exists_imp_exists,
+  rintros i ⟨h₀,h₁⟩,
+  existsi h₀,
+  introv h₂,
+  generalize h₃ : (i - (k + 1)) = n,
+  induction n generalizing k,
+  { apply h, dsimp [next], rw ← add_succ, apply h', convert h₀,
+    apply le_antisymm, apply succ_le_of_lt h₂,
+    apply nat.le_of_sub_eq_zero h₃, apply h₁ _ h₂, },
+  { apply h,
+    { have h₄ : k + 1 ≤ i := succ_le_of_lt h₂,
+      dsimp [next], rw ← add_succ,
+      apply n_ih, rw nat.sub_eq_iff_eq_add at h₃; try { assumption },
+      { rw [h₃,succ_add], apply succ_lt_succ,
+        apply lt_of_lt_of_le (lt_succ_self _),
+        apply nat.le_add_left },
+      { apply succ.inj,
+        rw [← h₃,succ_add,← succ_sub,succ_sub_succ_eq_sub],
+        apply succ_le_of_lt, rw nat.sub_eq_iff_eq_add at h₃; try { assumption },
+        rw h₃, apply lt_add_of_pos_left, apply zero_lt_succ }, },
+    apply h₁ _ h₂, },
+end
+
+lemma henceforth_until {Γ p q : cpred}
+  (h : Γ ⊢ ◻(p 𝒰 q)) :
+  Γ ⊢ ◻(p ⋁ q) :=
+begin
+  lifted_pred using h,
+  intro i, specialize h i,
+  rcases h with ⟨⟨j⟩,h₀,h₁⟩,
+  { right, apply h₀ },
+  { left, apply h₁ 0, apply zero_lt_succ }
+end
+
+lemma henceforth_until' {Γ p : cpred} (q : cpred)
+  (h : Γ ⊢ ◻(p 𝒰 (p ⋀ q))) :
+  Γ ⊢ ◻p :=
+begin
+  replace h := henceforth_until h,
+  suffices : p ⋁ p ⋀ q = p, { simp [this] at h, exact h },
+  lifted_pred, tauto,
+end
 
 def nelist (α : Type*) := { xs : list α // xs.empty = ff }
 
@@ -624,5 +678,93 @@ def nelist.cons {α : Type*} : α → nelist α → nelist α
 
 noncomputable def epsilon [nonempty α] (p : tvar (α → Prop)) : tvar α :=
 ⟨ λ i, classical.epsilon $ i ⊨ p ⟩
+
+section witness
+variables x₀ : tvar α
+variables f : tvar (α → α)
+variables (i : ℕ)
+
+open classical nat
+
+private def w : ℕ → α
+ | 0 := i ⊨ x₀
+ | (succ j) := (i + j ⊨ f) (w j)
+
+lemma fwd_witness
+: ⊩ ∃∃ w, w ≃ x₀ ⋀ ◻( ⊙w ≃ f w ) :=
+begin
+  lifted_pred,
+  existsi (⟨ λ i, w x₀ f x (i - x) ⟩ : tvar α),
+  simp [nat.sub_self,w],
+  intro i,
+  have h : x + i ≥ x := nat.le_add_right _ _,
+  simp [next,nat.add_sub_cancel_left,succ_sub h,w],
+end
+
+variables {P : cpred}
+variables (j : ℕ)
+
+local attribute [instance] classical.prop_decidable
+
+lemma first_P {p : ℕ → Prop} (h : ∃ i, p i) :
+  (∃ i, (∀ j < i, ¬ p j) ∧ p i) :=
+begin
+  cases h with i h,
+  induction i using nat.strong_induction_on with i ih,
+  by_cases h' : (∀ (j : ℕ), j < i → ¬p j),
+  { exact ⟨_,h',h⟩, },
+  { simp [not_forall] at h',
+    rcases h' with ⟨j,h₀,h₁⟩,
+    apply ih _ h₀ h₁, }
+end
+
+noncomputable def next_P {x} (h : x ⊨ ◻◇P) (y : ℕ) : ℕ :=
+classical.some (first_P (h y))
+
+lemma next_P_eq_self {x} (h : x ⊨ ◻◇P) (y : ℕ)
+  (h' : x+y ⊨ P) :
+  next_P h y = 0 :=
+begin
+  simp [next_P],
+  apply_some_spec,
+  intros h, by_contradiction h₂,
+  replace h₂ := nat.lt_of_le_and_ne (nat.zero_le _) (ne.symm h₂),
+  apply h.1 _ h₂,
+  simp [h']
+end
+
+lemma next_P_eq_succ {x} (h : x ⊨ ◻◇P) (y : ℕ)
+  (h' : ¬ x+y ⊨ P) :
+  next_P h y = succ (next_P h (succ y)) :=
+begin
+  simp [next_P],
+  apply_some_spec, apply_some_spec,
+  simp, intros h₀ h₁ h₂ h₃,
+  by_contradiction h₄,
+  replace h₄ := lt_or_gt_of_ne (h₄),
+  cases h₄,
+  cases x_1,
+  { apply h', convert h₃ using 2, },
+  { replace h₄ := lt_of_succ_lt_succ h₄,
+    apply h₀ _ h₄, convert h₃ using 2, simp [add_succ] },
+  { apply h₂ _ h₄, convert h₁ using 2, simp [add_succ] },
+end
+
+lemma back_witness {Γ}
+  (h : Γ ⊢ ◻◇P)
+: Γ ⊢ ∃∃ w, ◻( (P ⋀ w ≃ x₀) ⋁ (- P ⋀ w ≃ ⊙(f w)) ) :=
+begin
+  lifted_pred using h,
+  existsi (⟨ λ i, w x₀ f (i) (next_P h (i - x)) ⟩ : tvar α),
+  intro j, simp [nat.add_sub_cancel_left,w],
+  by_cases h' : x + j ⊨ P; simp [next_P_eq_self,*,w],
+  rw [next_P_eq_succ,w],
+  congr' 1,
+  { admit },
+  have : (succ (x + j) - x) = succ j, admit,
+  rw this, clear this,
+end
+
+end witness
 
 end temporal
