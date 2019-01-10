@@ -466,6 +466,30 @@ begin [temporal]
   { right, assumption },
 end
 
+-- def tl_leads_to (p q : cpred) : cpred := ◻(p ⟶ ◇q)
+-- infix ` ~> `:55 := tl_leads_to
+
+protected lemma leads_to_cancellation'
+  {p q b r : cpred} {t : ℕ}
+    (P₀ : t ⊨ p ~> q ⋁ b)
+    (P₁ : t ⊨ q ~> r)
+    : t ⊨ p ~> r ⋁ b :=
+begin
+  intros Δ h,
+  have := P₀ _ h, clear h,
+  cases this with Δ' h,
+  cases h with h h,
+  { rw add_assoc at h,
+    specialize P₁ _ h,
+    cases P₁ with Δ'' h,
+    rw ← add_assoc at h,
+    existsi (Δ' + Δ''),
+    rw ← add_assoc,
+    left, apply h },
+  { existsi Δ', right, assumption },
+end
+
+
 protected lemma leads_to_disj_rng {t : Sort u}
   {p : t → cpred} {Γ q} {r : t → Prop}
   (h : Γ ⊢ ∀∀ i, ↑(r i) ⟶ (p i ~> q))
