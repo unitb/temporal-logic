@@ -1494,11 +1494,11 @@ meta def unfold_coes (ids : parse ident *) (l : parse location) (cfg : unfold_co
 tactic.interactive.unfold_coes l >>
 tactic.interactive.unfold ids l cfg
 
-meta def unfold :=
-tactic.interactive.unfold
+meta def unfold (ns : parse parser.ident *) (loc : parse location) :=
+tactic.interactive.unfold ns loc
 
-meta def dunfold :=
-tactic.interactive.dunfold
+meta def dunfold (ns : parse parser.ident *) (loc : parse location) :=
+tactic.interactive.dunfold ns loc
 
 meta def dsimp :=
 tactic.interactive.dsimp

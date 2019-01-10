@@ -456,6 +456,7 @@ protected lemma leads_to_cancellation {Γ p q b r : cpred}
     (P₁ : Γ ⊢ q ~> r)
     : Γ ⊢ p ~> r ⋁ b :=
 begin [temporal]
+  unfold tl_leads_to at *,
   henceforth,
   intros h,
   have := P₀ h, clear h,
